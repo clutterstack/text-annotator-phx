@@ -3,12 +3,12 @@ defmodule AnnotatorWeb.TextAnnotator do
   require Logger
 
   defmodule TextChunk do
-    defstruct [:id, :text]
+    defstruct [:id, :text, :highlight_start, :highlight_end]
   end
 
   def mount(_params, _session, socket) do
     {:ok, assign(socket,
-      chunks: [%TextChunk{id: 0, text: "Initial text\nwith multiple\nlines of content\nand more lines\nhere"}],
+      chunks: [%TextChunk{id: 0, text: "Initial text\nwith multiple\nlines of content\nand more lines\nhere", highlight_start: nil, highlight_end: nil}],
       selected_text: "",
       selected_chunk_id: nil
     )}
@@ -22,7 +22,15 @@ defmodule AnnotatorWeb.TextAnnotator do
           <div class="p-2 whitespace-pre-wrap font-mono border rounded"
                id={"chunk-#{chunk.id}"}
                phx-hook="SelectText">
-            <%= chunk.text %>
+            <%= if chunk.highlight_start do %>
+              <%= String.slice(chunk.text, 0, chunk.highlight_start) %>
+              <span class="bg-yellow-200">
+                <%= String.slice(chunk.text, chunk.highlight_start, chunk.highlight_end - chunk.highlight_start) %>
+              </span>
+              <%= String.slice(chunk.text, chunk.highlight_end..-1) %>
+            <% else %>
+              <%= chunk.text %>
+            <% end %>
           </div>
         </div>
       <% end %>
@@ -41,7 +49,6 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def handle_event("text_selected", %{"text" => text, "chunkId" => chunk_id}, socket) do
-    Logger.info("Selected text: #{text} in chunk #{chunk_id}")
     {:noreply, assign(socket,
       selected_text: text,
       selected_chunk_id: String.replace(chunk_id, "chunk-", "") |> String.to_integer()
@@ -52,14 +59,15 @@ defmodule AnnotatorWeb.TextAnnotator do
     %{selected_chunk_id: chunk_id, selected_text: selected_text, chunks: chunks} = socket.assigns
     chunk = Enum.find(chunks, &(&1.id == chunk_id))
 
-    {pre, selected, post} = split_chunk_at_selection(chunk.text, selected_text)
+    {pre, selected_line, post, highlight_range} = split_chunk_at_selection(chunk.text, selected_text)
+    {highlight_start, highlight_length} = highlight_range
 
     new_chunks = chunks
       |> Enum.reject(&(&1.id == chunk_id))
       |> Kernel.++([
-        %TextChunk{id: length(chunks), text: pre},
-        %TextChunk{id: length(chunks) + 1, text: selected},
-        %TextChunk{id: length(chunks) + 2, text: post}
+        %TextChunk{id: length(chunks), text: pre, highlight_start: nil, highlight_end: nil},
+        %TextChunk{id: length(chunks) + 1, text: selected_line, highlight_start: highlight_start, highlight_end: highlight_start + highlight_length},
+        %TextChunk{id: length(chunks) + 2, text: post, highlight_start: nil, highlight_end: nil}
       ])
       |> Enum.reject(&(String.trim(&1.text) == ""))
       |> Enum.sort_by(& &1.id)
@@ -69,29 +77,23 @@ defmodule AnnotatorWeb.TextAnnotator do
 
   defp split_chunk_at_selection(text, selected) do
     selection_start = :binary.match(text, selected) |> elem(0)
-    selection_end = selection_start + String.length(selected)
-
-    # Get text before selection
-    text_before = String.slice(text, 0, selection_start)
-    # Get selection
-    selected_text = String.slice(text, selection_start, String.length(selected))
-    # Get text after selection
-    text_after = String.slice(text, selection_end..-1)
 
     # Find line boundaries
-    pre_split = case :binary.matches(text_before, "\n") do
-      [] -> 0
-      matches -> elem(List.last(matches), 0) + 1
-    end
+    lines = String.split(text, "\n")
+    {pre_lines, selected_and_post} = Enum.split_while(lines, fn line ->
+      not String.contains?(line, selected)
+    end)
 
-    post_split = case :binary.match(text_after, "\n") do
-      :nomatch -> String.length(text_after)
-      {pos, _} -> pos
-    end
+    [selected_line | post_lines] = selected_and_post
 
-    pre = String.slice(text, 0, pre_split)
-    post = String.slice(text_after, post_split..-1)
+    # Calculate highlight position within the selected line
+    highlight_start = :binary.match(selected_line, selected) |> elem(0)
 
-    {pre, selected_text, post}
+    {
+      Enum.join(pre_lines, "\n"),
+      selected_line,
+      Enum.join(post_lines, "\n"),
+      {highlight_start, String.length(selected)}
+    }
   end
 end
