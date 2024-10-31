@@ -37,14 +37,12 @@ defmodule AnnotatorWeb.TextAnnotator do
               <button type="submit" class="mt-1 px-2 py-1 bg-green-500 text-white rounded text-sm">Save</button>
             </form>
           <% else %>
-            <div class="relative p-2 whitespace-pre-wrap font-mono border rounded group"
-              id={"chunk-#{chunk.id}"}
-              phx-hook="SelectText"><%= if chunk.highlight_start do %><AnnotatorComponents.text_with_highlights chunk={chunk} /><% else %><%= chunk.text %><% end %></div>
-              <button class="invisible group-hover:visible absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white rounded text-sm"
-                      phx-click="edit_chunk"
-                      phx-value-id={chunk.id}>
-                Edit
-              </button>
+            <div class="relative p-2 whitespace-pre-wrap font-mono border rounded group"><div id={"chunk-#{chunk.id}"} phx-hook="SelectText"><%= if chunk.highlight_start do %><AnnotatorComponents.text_with_highlights chunk={chunk} /><% else %><%= chunk.text %><% end %></div>
+            <button class="invisible group-hover:visible absolute top-2 right-2 px-2 py-1 bg-blue-500 text-white rounded text-sm"
+                    phx-click="edit_chunk"
+                    phx-value-id={chunk.id}>
+              Edit
+              </button></div>
           <% end %>
         </div>
         <div  class="mb-8">
@@ -57,7 +55,6 @@ defmodule AnnotatorWeb.TextAnnotator do
           <% end %>
         </div>
       <% end %>
-
 
       <%= if @selected_text != "" do %>
         <div class="fixed bottom-4 right-4 bg-white p-4 shadow-lg rounded-lg border">
@@ -96,8 +93,7 @@ defmodule AnnotatorWeb.TextAnnotator do
         {:error, :chunk_not_found}
       _chunk ->
         selection_start = start_offset # get_selection_position(Enum.find(socket.assigns.chunks, &(&1.id == chunk_id)).text, text)
-        Logger.info("in text_selected handler, selection_start is #{selection_start} and selection_length is #{String.length(text)}")
-        Logger.info("(the selection is #{text})")
+        # Logger.info("in text_selected handler, selection_start is #{selection_start} and selection_length is #{String.length(text)}")
         {:noreply, assign(socket,
           selected_text: text,
           selected_chunk_id: chunk_id,
@@ -125,9 +121,13 @@ defmodule AnnotatorWeb.TextAnnotator do
       |> Enum.map(fn {{text, start_position}, index} ->
         %TextChunk{
           id: socket.assigns.next_id + index,
-          text: text,
-          highlight_start: start_position,
-          highlight_end: if(start_position, do: start_position + selection_length, else: nil)
+          text: text
+          # Don't do highlights for now. It kind of works, but
+          # I'd like to do editable chunks before highlights and
+          # keeping track of the position of the highlight after
+          # editing is fun I don't want to have right now
+          # highlight_start: start_position,
+          # highlight_end: if(start_position, do: start_position + selection_length, else: nil)
         }
       end)
       |> Enum.reject(&(String.trim(&1.text) == ""))
@@ -166,11 +166,6 @@ defmodule AnnotatorWeb.TextAnnotator do
   def handle_event("update_draft_annotation", %{"value" => value}, socket) do
     {:noreply, assign(socket, draft_annotation: value)}
   end
-
-  ## Helpers
-
-
-
 
   def handle_event("save_annotation", _, socket) do
     %{selected_chunk_id: chunk_id, selected_text: text, draft_annotation: annotation} = socket.assigns
@@ -229,19 +224,9 @@ defmodule AnnotatorWeb.TextAnnotator do
     #   end
     # end
 
-
-
   # get the annotations for this text chunk
   defp chunk_annotations(annotations, chunk_id) do
     Enum.filter(annotations, &(&1.chunk_id == chunk_id))
   end
-
-  defp get_selection_position(text, selected) do
-    case :binary.match(text, selected) do
-      {pos, _len} -> pos
-      :nomatch -> 0
-    end
-  end
-
 
 end
