@@ -1,7 +1,58 @@
 defmodule AnnotatorWeb.AnnotatorComponents do
   use Phoenix.Component
   require Logger
+
   # use AnnotatorWeb, :html
+
+  attr :id, :string, default: "the_grid" # needed for phx-update on the data-grid element
+  attr :rows, :map, required: true
+  attr :row_id, :any, default: nil, doc: "the function for generating the row id"
+  attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
+  # Here's one that works: row_click={fn %Annotator.DataGridSchema.Line{:line_number => line_number} -> rowclick(line_number) end
+  # This attr gets used like `phx-click={@row_click && @row_click.(row)}`  which tells us approximately "if the row_click attr exists, pass the value of `row` to it and pass that to phx-click." Sort of.
+
+  attr :row_item, :any,
+  default: &Function.identity/1,
+  doc: "the function for mapping each row before calling the :col and :action slots"
+
+  slot :col, required: true do
+    attr :label, :string
+    attr :name, :string
+  end
+
+  def anno_grid(assigns) do
+    # This is a function that creates an assign for every row, I think. Something
+    # to do with LiveStream and dynamic IDs.
+    assigns =
+      with %{lines: %Phoenix.LiveView.LiveStream{}} <- assigns do
+        assign(assigns, row_id: assigns.row_id || fn {id, _item} -> id end)
+      end
+    ~H"""
+    <div class="data-grid"
+      role="grid"
+      id={@id}
+      aria-label="Code content and notes"
+      phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
+      >
+      <div role="row" class="header">
+        <div :for={col <- @col} role="columnheader" class="line-number"><%= col[:label] %></div>
+      </div>
+      <div :for={row <- @rows} role="row" id={@row_id && @row_id.(row)} class="group hover:bg-zinc-100 heyyou">
+        <div
+          :for={{col, i} <- Enum.with_index(@col)}
+          phx-click={@row_click && @row_click.(row, col)}
+          class={["#{col[:name]}", @row_click && "hover:cursor-pointer"]}
+        >
+          <div>
+            <span class={[i == 0 && "text-zinc-400"]}>
+              <%= render_slot(col, @row_item.(row)) %>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 
   attr :chunk, :map, required: true
 

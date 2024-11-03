@@ -30,36 +30,36 @@
 
   /* For annotator grid component */
 
-  .code-grid {
+  .data-grid {
     @apply w-full max-w-6xl mx-auto;
   }
   
-  .code-grid .grid-container {
+  .data-grid .grid-container {
     @apply grid grid-cols-3 gap-4;
   }
   
-  .code-grid .grid-row, .code-grid .header {
+  .data-grid .grid-row, .data-grid .header {
     /* display: contents; */
     @apply grid grid-cols-subgrid col-span-3 border border-solid;
   }
 
-  .code-grid .header {
+  .data-grid .header {
     @apply font-bold;
   }
   
-  .code-grid .line-number {
+  .data-grid .line-number {
     @apply p-2 text-gray-500 font-mono border-r;
   }
   
-  .code-grid .content {
+  .data-grid .content {
     @apply p-2 font-mono border-r;
   }
   
-  .code-grid .notes {
+  .data-grid .notes {
     @apply p-2;
   }
   
-  .code-grid .focused {
+  .data-grid .focused {
     @apply outline outline-2 outline-blue-500;
   }
   
