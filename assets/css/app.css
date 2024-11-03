@@ -62,4 +62,8 @@
   .data-grid .focused {
     @apply outline outline-2 outline-blue-500;
   }
+
+  .data-grid .grid-cell:focus {
+    @apply bg-orange-300;
+  }
   

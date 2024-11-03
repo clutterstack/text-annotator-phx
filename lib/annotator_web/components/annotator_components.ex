@@ -30,28 +30,80 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     ~H"""
     <div class="data-grid"
       role="grid"
+      tabindex="0"
       id={@id}
+      phx-hook="GridNav"
       aria-label="Code content and notes"
       phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
       >
-      <div role="row" class="header">
-        <div :for={col <- @col} role="columnheader" class="line-number"><%= col[:label] %></div>
+      <div role="rowgroup">
+        <div role="row" class="header">
+          <div :for={col <- @col} role="columnheader" aria-sort="none"
+ class="line-number"><%= col[:label] %></div>
+        </div>
       </div>
-      <div :for={row <- @rows} role="row" id={@row_id && @row_id.(row)} class="group hover:bg-zinc-100 heyyou">
-        <div
-          :for={{col, i} <- Enum.with_index(@col)}
-          phx-click={@row_click && @row_click.(row, col)}
-          class={["#{col[:name]}", @row_click && "hover:cursor-pointer"]}
-        >
-          <div>
-            <span class={[i == 0 && "text-zinc-400"]}>
-              <%= render_slot(col, @row_item.(row)) %>
-            </span>
+      <div role="rowgroup">
+        <div :for={row <- @rows} role="row" id={@row_id && @row_id.(row)} class="group hover:bg-zinc-100 heyyou">
+          <div
+            :for={{col, i} <- Enum.with_index(@col)}
+            tabindex="-1"
+            phx-click={@row_click && @row_click.(row, col)}
+            class={["grid-cell", "#{col[:name]}", @row_click && "hover:cursor-pointer"]}
+          >
+            <div>
+              <span class={[i == 0 && "text-zinc-400"]}>
+                <%= render_slot(col, @row_item.(row)) %>
+              </span>
+            </div>
           </div>
         </div>
       </div>
     </div>
     """
+  end
+
+
+  def anno_grid_cell(assigns) do
+    ~H"""
+    <span> Hi there </span>
+    """
+    # <%= if @editing == {line.line_number, :content} do %>
+    #             <div
+    #               role="gridcell"
+    #               tabindex="-1"
+    #               phx-value-line_number={line.line_number}
+    #               phx-value-field="content"
+    #               id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
+    #               class={[
+    #                 "content",
+    #                 if(@focused_cell == {line.line_number, 1}, do: "focused")
+    #               ]}
+    #             >
+    #               <form phx-submit="update_content" phx-value-line_number={line.line_number}>
+    #                 <input type="text"
+    #                       name="content"
+    #                       value={line.content}
+    #                       phx-debounce="200"
+    #                       autofocus />
+    #               </form>
+    #             </div>
+    #           <% else %>
+    #             <div
+    #                 role="gridcell"
+    #                 tabindex="-1"
+    #                 phx-click="start_edit"
+    #                 phx-value-line_number={line.line_number}
+    #                 phx-value-field="content"
+    #                 id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
+    #                 class={[
+    #                   "content",
+    #                   if(@focused_cell == {line.line_number, 1}, do: "focused")
+    #                 ]}
+    #               >
+    #               <pre><code><%= line.content %></code></pre>
+    #             </div>
+    #           <% end %>
+    #
   end
 
   attr :chunk, :map, required: true

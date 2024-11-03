@@ -24,95 +24,10 @@ defmodule AnnotatorWeb.TextAnnotator do
       end
     end}>
         <:col :let={line} name="line-num" label="#"><%= line.line_number %></:col>
-        <:col :let={line} name="content" label="Content"><%= line.content %></:col>
+        <:col :let={line} name="content" label="Content"><.anno_grid_cell /><%= line.content %></:col>
         <:col :let={line} name="note" label="Note"><%= line.note %></:col>
       </.anno_grid>
 
-        <div class="data-grid">
-        <div
-          role="grid"
-          aria-label="Code content and notes"
-          phx-window-keyup="handle_keyup"
-          phx-value-focused_row={@focused_cell |> elem(0)}
-          class="grid-container"
-          tabindex="0"
-        >
-          <div role="row" class="header">
-            <div role="columnheader" class="line-number">#</div>
-            <div role="columnheader" class="content">Content</div>
-            <div role="columnheader" class="notes">Notes</div>
-          </div>
-          <%= for line <- @lines do %>
-            <div role="row" class="grid-row">
-              <div role="gridcell"
-              class="line-number"
-              tabindex="-1"
-              id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
-              >
-                <%= line.line_number %>
-                <p>BTW the value of the editing attribute is <%= inspect @editing %>,</p>
-                <p>The focused cell is <%= inspect @focused_cell %>,</p>
-                <p>And line.line_number is <%= inspect line.line_number %></p>
-              </div>
-              <%= if @editing == {line.line_number, :content} do %>
-                <div
-                  role="gridcell"
-                  tabindex="-1"
-                  phx-value-line_number={line.line_number}
-                  phx-value-field="content"
-                  id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
-                  class={[
-                    "content",
-                    if(@focused_cell == {line.line_number, 1}, do: "focused")
-                  ]}
-                >
-                  <form phx-submit="update_content" phx-value-line_number={line.line_number}>
-                    <input type="text"
-                          name="content"
-                          value={line.content}
-                          phx-debounce="200"
-                          autofocus />
-                  </form>
-                </div>
-              <% else %>
-                <div
-                    role="gridcell"
-                    tabindex="-1"
-                    phx-click="start_edit"
-                    phx-value-line_number={line.line_number}
-                    phx-value-field="content"
-                    id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
-                    class={[
-                      "content",
-                      if(@focused_cell == {line.line_number, 1}, do: "focused")
-                    ]}
-                  >
-                  <pre><code><%= line.content %></code></pre>
-                </div>
-              <% end %>
-              <div role="gridcell"
-                tabindex="-1"
-                phx-click="start_edit"
-                phx-value-line_number={line.line_number}
-                phx-value-field="note"
-                class="notes">
-                <%= if @editing == {line.line_number, :note} do %>
-                  <form phx-submit="update_note">
-                    <input type="text"
-                          name="note"
-                          value={line.note}
-                          phx-value-line_number={line.line_number}
-                          phx-debounce="200"
-                          />
-                  </form>
-                <% else %>
-                  <%= line.note %>
-                <% end %>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      </div>
       """
     end
 
@@ -124,6 +39,21 @@ defmodule AnnotatorWeb.TextAnnotator do
       {:noreply, socket}
     end
 
+    def handle_event("cell_activated", %{"row" => row, "col" => col, "cellContent" => content}, socket) do
+      # Handle cell activation here
+      # For example, you might want to:
+      # - Open a modal
+      # - Navigate to a detail view
+      # - Toggle a state
+      Logger.info("inside dummy cell_activated event handler")
+      {:noreply, socket}
+    end
+
+    def handle_event("cell_focused", %{"row" => row, "col" => col}, socket) do
+      Logger.info("inside dummy cell_focused event handler")
+      {:noreply, socket}
+    end
+
     def create_data_grid(content) do
       String.split(content, "\n")
       |> Enum.with_index(1)
@@ -131,6 +61,8 @@ defmodule AnnotatorWeb.TextAnnotator do
         %DataGridSchema.Line{line_number: index, content: line, note: ""}
       end)
     end
+
+
 
     ## Event handlers
 

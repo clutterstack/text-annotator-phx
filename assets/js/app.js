@@ -22,21 +22,12 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { SelectText } from "./hooks/select_text"
+import { GridNav } from "./hooks/grid_nav"
 
 let Hooks = {
-  SelectText: SelectText
+  SelectText: SelectText,
+  GridNav: GridNav
 }
-// Hooks.SelectText = {
-//   mounted() {
-//     this.el.addEventListener("mouseup", e => {
-//       const selection = window.getSelection()?.toString().trim();
-//       if (selection) {
-//         const paragraphId = this.el.dataset.id || null;
-//         this.pushEvent("text_selected", { text: selection, paragraph_id: paragraphId });
-//       }
-//     })
-//   }
-// }
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
