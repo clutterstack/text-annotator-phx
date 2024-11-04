@@ -1,5 +1,6 @@
 defmodule AnnotatorWeb.AnnotatorComponents do
   use Phoenix.Component
+  import AnnotatorWeb.CoreComponents
   require Logger
 
   # use AnnotatorWeb, :html
@@ -58,19 +59,20 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           >
             <%= if @editing == {row_index, col_index} do %>
               <div class="w-full">
-                <form phx-submit="update_cell">
-                  <input type="hidden" name="row_id" value={row.id} />
-                  <input type="hidden" name="column" value={col[:name]} />
+                <.form phx-submit="update_cell">
+                  <input type="hidden" name="row_index" value={row_index}>
+                  <input type="hidden" name="col_index" value={col_index}>
                   <input
                     type="text"
                     name="value"
                     value={Map.get(row, String.to_existing_atom(col[:name]))}
                     class="w-full p-1 border rounded"
-                    phx-blur="cancel_edit"
+                    phx-blur="prompt_save_changes"
                     phx-debounce="200"
                     autofocus
                   />
-                </form>
+                  <button type="submit">Save</button>
+                </.form>
               </div>
             <% else %>
               <div

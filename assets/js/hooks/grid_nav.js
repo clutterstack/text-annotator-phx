@@ -26,8 +26,22 @@ export const GridNav = {
     }
 
     this.handleKeyDown = (e) => {
+      //The escape key needs to work even if editing
+      if (e.key == 'Escape') {
+        this.pushEvent("cancel_edit");
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key == 'Enter') {
+        this.pushEvent("update_cell", {
+          row: this.currentRow,
+          col: this.currentCol
+        });
+        return;
+      }
+
       // Don't handle navigation when editing
-      // if (this.isEditing()) return;
+      if (this.isEditing()) return;
 
       // Only handle arrow keys and Enter
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) return;
@@ -63,9 +77,6 @@ export const GridNav = {
               col: this.currentCol
             });
           }
-          break;
-        case 'Escape':
-          this.pushEvent("cancel_edit");
           break;
       }
     };
