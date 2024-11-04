@@ -10,149 +10,93 @@ defmodule AnnotatorWeb.TextAnnotator do
       {:ok, assign(socket,
         lines: [%DataGridSchema.Line{id: "one", line_number: 0, content: "Here's some content", note: "Here's a note on row number 0"}, %DataGridSchema.Line{id: "two", line_number: 1, content: "Here's two content", note: "Here's a note on row number 1"}],
         focused_cell: {0, 1},  # {row, col} numbers for first row and the content column (first col is line number display)
-        editing: nil  # nil or {line_number, :content|:note}
+        editing: nil  # nil or {id, :content|:note}
       )}
     end
 
     def render(assigns) do
-
       ~H"""
-      <.anno_grid id="this-annotated-content" rows={@lines}
-      row_click={fn row, col ->
-      if col[:name] in ["content", "note"] do
-        JS.push("start_edit", value: %{row_id: row.id, column: col[:name]})
-      end
-    end}>
+      <.anno_grid
+        id="this-annotated-content"
+        rows={@lines}
+        editing={@editing}
+        row_click={fn row_index, col, col_index ->
+          if col[:name] in ["content", "note"] && @editing == nil do
+            JS.push("click_edit", value: %{row_index: row_index, col_index: col_index})
+          else
+            JS.push("click_focus", value: %{row_index: row_index, col_index: col_index})
+          end
+      end}>
         <:col :let={line} name="line-num" label="#"><%= line.line_number %></:col>
-        <:col :let={line} name="content" label="Content"><.anno_grid_cell /><%= line.content %></:col>
+        <:col :let={line} name="content" label="Content"><%= line.content %></:col>
         <:col :let={line} name="note" label="Note"><%= line.note %></:col>
       </.anno_grid>
-
       """
     end
 
-    ## Helpers
-0
-
-    def handle_event("start_edit",  %{"row_id" => row_id, "column" => column}, socket) do
-      Logger.info("start_edit handler. row: #{row_id}")
-      {:noreply, socket}
-    end
-
-    def handle_event("cell_activated", %{"row" => row, "col" => col, "cellContent" => content}, socket) do
-      # Handle cell activation here
-      # For example, you might want to:
-      # - Open a modal
-      # - Navigate to a detail view
-      # - Toggle a state
-      Logger.info("inside dummy cell_activated event handler")
-      {:noreply, socket}
-    end
-
-    def handle_event("cell_focused", %{"row" => row, "col" => col}, socket) do
-      Logger.info("inside dummy cell_focused event handler")
-      {:noreply, socket}
-    end
-
-    def create_data_grid(content) do
-      String.split(content, "\n")
-      |> Enum.with_index(1)
-      |> Enum.map(fn {line, index} ->
-        %DataGridSchema.Line{line_number: index, content: line, note: ""}
-      end)
-    end
-
-
-
-    ## Event handlers
-
-    def handle_event("handle_keyup", %{"key" => "Enter"}, socket) do
-      Logger.info("checking focused_cell: #{inspect socket.assigns.focused_cell}")
-      {row, col} = socket.assigns.focused_cell
-      Logger.info("editing: #{inspect socket.assigns.editing}")
-      if col == 1 do
-        Logger.info("detected the Enter key on cell #{inspect {row,col}}")
-        the_line = Enum.find(socket.assigns.lines, fn line -> line.line_number == row end)
-        Logger.info("cell #{inspect {row,col}} corresponds to the line #{inspect the_line}")
-        # Logger.info("Check if phx- values on element get passed up to phx-window-keyup: line_number= #{line_number}")
-            with nil <- socket.assigns.editing do
-              # Enter edit mode
-              Logger.info("change assigns to try to enter edit mode with editing #{the_line.line_number}, :content")
-              {:noreply, assign(socket, editing: {the_line.line_number, :content})}
-            else
-              # If we were already in edit mode don't capture; key events
-              _ -> {:noreply, socket}
-            end
+    def handle_event("click_edit", %{"row_index" => row_index, "col_index" => col_index}, socket) do
+      Logger.info("click_edit handler. {row_index, col_index}: {#{row_index}, #{col_index}}")
+      if socket.assigns.editing == nil do
+        {:noreply, assign(socket, editing: {row_index, col_index})}
       else
-        Logger.info("Enter on a non-editable cell; disregarding")
-        {:noreply, socket}
-      end
-
-    end
-
-    def handle_event("handle_keyup", %{"key" => "ArrowUp"}, socket) do
-      {row, col} = socket.assigns.focused_cell
-      Logger.info("detected ArrowUp key on cell #{inspect {row,col}}")
-      if row > 0 do
-        Logger.info("moving up")
-        {:noreply, assign(socket, focused_cell: {row - 1, col})}
-      else
-        Logger.info("already at row 0")
+        Logger.info("start_edit event but already editing")
         {:noreply, socket}
       end
     end
 
-    def handle_event("handle_keyup", %{"key" => "ArrowDown"}, socket) do
-      {row, col} = socket.assigns.focused_cell
-      Logger.info("detected ArrowDown key on cell #{inspect {row,col}}")
-      if row < length(socket.assigns.lines) - 1 do
-        Logger.info("moving down")
-        {:noreply, assign(socket, focused_cell: {row + 1, col})}
-      else
-        Logger.info("already at last row")
-        {:noreply, socket}
-      end
+    def handle_event("click_focus", %{"row_index" => row_index, "col_index" => col_index}, socket) do
+      Logger.info("click_focus handler. {row_index, col_index}: {#{row_index}, #{col_index}}")
+      {:noreply, assign(socket, focused_cell: {row_index, col_index})}
     end
 
-    def handle_event("handle_keyup", %{"key" => "ArrowLeft"}, socket) do
-      {row, col} = socket.assigns.focused_cell
-      Logger.info("detected ArrowLeft key on cell #{inspect {row,col}}")
-      if col > 1 do
-        Logger.info("moving left")
-        focus_cell({row, col - 1})
-        {:noreply, assign(socket, focused_cell: {row, col - 1})}
-      else
-        Logger.info("already at col 1")
-        {:noreply, socket}
-      end
-    end
+# Handle the activate_cell event from the hook (triggered by Enter key)
+def handle_event("activate_cell", %{"row" => row_index, "col" => col_index}, socket) do
+  # Find the line by index in the list
+  line = Enum.at(socket.assigns.lines, row_index)
+  # Get the column name based on index
+  col_name = case col_index do
+    0 -> "line-num"
+    1 -> "content"
+    2 -> "note"
+    _ -> nil
+  end
 
-    def handle_event("handle_keyup", %{"key" => "ArrowRight"}, socket) do
-      {row, col} = socket.assigns.focused_cell
-      Logger.info("detected ArrowRight key on cell #{inspect {row,col}}")
-      if col < 2 do
-        Logger.info("moving right")
-        {:noreply, assign(socket, focused_cell: {row, col + 1})}
-      else
-        Logger.info("already at col 2")
-        {:noreply, socket}
-      end
-    end
-
-    def handle_event("handle_keyup", _, socket) do
-      {:noreply, socket}
-
-    end
-
-    # ... other event handlers for editing ...
-    # When user clicks or keypresses to edit
-def handle_event("start_edit", %{"line_number" => line_number, "field" => field}, socket) do
-  Logger.info("start_edit handler has been invoked. Do I want to move this listener to the whole grid?")
-  Logger.info("trying to set editing to #{inspect {line_number, String.to_atom(field)}}")
-  assign(socket, editing: {String.to_integer(line_number), String.to_atom(field)})
-  JS.focus(to: "")
-  {:noreply, assign(socket, editing: {String.to_integer(line_number), String.to_atom(field)})}
+  if line && col_name in ["content", "note"] do
+    {:noreply, assign(socket, editing: {line.line_number, col_name})}
+  else
+    {:noreply, socket}
+  end
 end
+
+def handle_event("cancel_edit", _params, socket) do
+  {:noreply, assign(socket, editing: nil)}
+end
+
+# Handle cell focus from JS hook
+def handle_event("cell_focused", %{"row" => row_index, "col" => col_index}, socket) do
+  # Convert row_index to line_number if needed
+  line = Enum.at(socket.assigns.lines, row_index)
+  if line do
+    {:noreply, assign(socket, focused_cell: {line.line_number, col_index})}
+  else
+    {:noreply, socket}
+  end
+end
+
+
+  def handle_event("update_cell", %{"row_id" => row_id, "column" => column, "value" => value}, socket) do
+    # Update your data structure here
+    # For example:
+    lines = Enum.map(socket.assigns.lines, fn line ->
+      if line.id == row_id do
+        Map.put(line, String.to_existing_atom(column), value)
+      else
+        line
+      end
+    end)
+
+    {:noreply, socket |> assign(lines: lines, editing: nil)}
+  end
 
 # Handle content updates, including paste events
 def handle_event("update_content", %{"line_number" => line_number, "content" => content}, socket) do
@@ -177,17 +121,16 @@ def handle_event("update_content", %{"line_number" => line_number, "content" => 
   end
 end
 
-# Handle note updates
-  def handle_event("update_note", %{"line_number" => line_number, "note" => note}, socket) do
-    {:noreply, update_line_note(socket, line_number, note)}
-  end
 
 # Helper functions
 
-  defp focus_cell(cell) do
-    Logger.info("in focus_cell")
-    {row, col} = cell
 
+  def create_data_grid(content) do
+    String.split(content, "\n")
+    |> Enum.with_index(1)
+    |> Enum.map(fn {line, index} ->
+      %DataGridSchema.Line{line_number: index, content: line, note: ""}
+    end)
   end
 
   defp update_line_content(socket, line_number, content) do
@@ -203,17 +146,6 @@ end
     end)
   end
 
-  defp update_line_note(socket, line_number, note) do
-    update(socket, :lines, fn lines ->
-      Enum.map(lines, fn line ->
-        if line.line_number == line_number do
-          %{line | note: note}
-        else
-          line
-        end
-      end)
-    end)
-  end
 
   defp insert_new_lines(socket, after_line_number, contents) do
     update(socket, :lines, fn lines ->

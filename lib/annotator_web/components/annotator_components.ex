@@ -3,17 +3,18 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   require Logger
 
   # use AnnotatorWeb, :html
+  attr :editing, :any, default: nil, doc: "tuple of {row_id, column} currently being edited"
+  attr :focused_cell, :any, default: nil, doc: "tuple of {row_index, col_index} currently focused"
 
   attr :id, :string, default: "the_grid" # needed for phx-update on the data-grid element
   attr :rows, :map, required: true
   attr :row_id, :any, default: nil, doc: "the function for generating the row id"
   attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
-  # Here's one that works: row_click={fn %Annotator.DataGridSchema.Line{:line_number => line_number} -> rowclick(line_number) end
   # This attr gets used like `phx-click={@row_click && @row_click.(row)}`  which tells us approximately "if the row_click attr exists, pass the value of `row` to it and pass that to phx-click." Sort of.
 
   attr :row_item, :any,
-  default: &Function.identity/1,
-  doc: "the function for mapping each row before calling the :col and :action slots"
+    default: &Function.identity/1,
+    doc: "the function for mapping each row before calling the :col and :action slots"
 
   slot :col, required: true do
     attr :label, :string
@@ -36,74 +37,55 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       aria-label="Code content and notes"
       phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
       >
-      <div role="rowgroup">
-        <div role="row" class="header">
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-3">
+        <div role="row" class="header grid grid-cols-subgrid col-span-3">
           <div :for={col <- @col} role="columnheader" aria-sort="none"
- class="line-number"><%= col[:label] %></div>
+            class={["#{col[:name]}"]}><%= col[:label] %></div>
         </div>
       </div>
-      <div role="rowgroup">
-        <div :for={row <- @rows} role="row" id={@row_id && @row_id.(row)} class="group hover:bg-zinc-100 heyyou">
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-3">
+        <div :for={{row, row_index} <- Enum.with_index(@rows)}
+          role="row"
+          id={@row_id && @row_id.(row)}
+          class="group hover:bg-zinc-100 heyyou grid grid-cols-subgrid col-span-3">
           <div
-            :for={{col, i} <- Enum.with_index(@col)}
+            :for={{col, col_index} <- Enum.with_index(@col)}
             tabindex="-1"
-            phx-click={@row_click && @row_click.(row, col)}
-            class={["grid-cell", "#{col[:name]}", @row_click && "hover:cursor-pointer"]}
+            role="gridcell"
+            data-focused={@focused_cell == {row_index, col_index}}
+            class={["grid-cell", "#{col[:name]}", @row_click && "hover:cursor-pointer",
+              @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500"]}
           >
-            <div>
-              <span class={[i == 0 && "text-zinc-400"]}>
-                <%= render_slot(col, @row_item.(row)) %>
-              </span>
-            </div>
+            <%= if @editing == {row_index, col_index} do %>
+              <div class="w-full">
+                <form phx-submit="update_cell">
+                  <input type="hidden" name="row_id" value={row.id} />
+                  <input type="hidden" name="column" value={col[:name]} />
+                  <input
+                    type="text"
+                    name="value"
+                    value={Map.get(row, String.to_existing_atom(col[:name]))}
+                    class="w-full p-1 border rounded"
+                    phx-blur="cancel_edit"
+                    phx-debounce="200"
+                    autofocus
+                  />
+                </form>
+              </div>
+            <% else %>
+              <div
+                phx-click={@row_click && @row_click.(row_index, col, col_index)}
+              >
+                <span class={[col_index == 0 && "text-zinc-400"]}>
+                  <%= render_slot(col, @row_item.(row)) %>
+                </span>
+              </div>
+            <% end %>
           </div>
         </div>
       </div>
     </div>
     """
-  end
-
-
-  def anno_grid_cell(assigns) do
-    ~H"""
-    <span> Hi there </span>
-    """
-    # <%= if @editing == {line.line_number, :content} do %>
-    #             <div
-    #               role="gridcell"
-    #               tabindex="-1"
-    #               phx-value-line_number={line.line_number}
-    #               phx-value-field="content"
-    #               id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
-    #               class={[
-    #                 "content",
-    #                 if(@focused_cell == {line.line_number, 1}, do: "focused")
-    #               ]}
-    #             >
-    #               <form phx-submit="update_content" phx-value-line_number={line.line_number}>
-    #                 <input type="text"
-    #                       name="content"
-    #                       value={line.content}
-    #                       phx-debounce="200"
-    #                       autofocus />
-    #               </form>
-    #             </div>
-    #           <% else %>
-    #             <div
-    #                 role="gridcell"
-    #                 tabindex="-1"
-    #                 phx-click="start_edit"
-    #                 phx-value-line_number={line.line_number}
-    #                 phx-value-field="content"
-    #                 id={if(@focused_cell == {line.line_number, 1}, do: "focused")}
-    #                 class={[
-    #                   "content",
-    #                   if(@focused_cell == {line.line_number, 1}, do: "focused")
-    #                 ]}
-    #               >
-    #               <pre><code><%= line.content %></code></pre>
-    #             </div>
-    #           <% end %>
-    #
   end
 
   attr :chunk, :map, required: true
