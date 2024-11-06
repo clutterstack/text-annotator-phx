@@ -43,8 +43,8 @@
     @apply font-bold;
   }
   
-  .data-grid .line-number {
-    @apply p-2 text-gray-500 font-mono border-r;
+  .data-grid .line-num {
+    @apply p-2 text-zinc-400 font-mono border-r;
   }
   
   .data-grid .content {

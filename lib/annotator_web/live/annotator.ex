@@ -9,7 +9,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     Logger.info("TextAnnotator liveview mount -- all the assigns get reset when this happens")
     {:ok, assign(socket,
       lines: [%DataGridSchema.Line{id: "one", line_number: 0, content: "Here's some content", note: "Here's a note on row number 0"},
-        %DataGridSchema.Line{id: "two", line_number: 1, content: "Here's two content", note: "Here's a note on row number 1"},
+        %DataGridSchema.Line{id: "two", line_number: 1, content: "Here's two content and I need to make it longer so it'll wrap; hey, let's put that in the seed content. [Wait I need some special \\ characters /]", note: "Here's a note on row number 1"},
         %DataGridSchema.Line{id: "three", line_number: 2, content: "Third content", note: "Third note"}
         ],
       focused_cell: {0, 1},  # {row, col} numbers for first row and the content column (first col is line number display)
@@ -29,9 +29,9 @@ defmodule AnnotatorWeb.TextAnnotator do
 
         end
     end}>
-      <:col :let={line} name="line-num" label="#"><%= line.line_number %></:col>
-      <:col :let={line} name="content" label="Content"><%= line.content %></:col>
-      <:col :let={line} name="note" label="Note"><%= line.note %></:col>
+      <:col :let={line} name="line-num" label="#" editable={false}><%= line.line_number %></:col>
+      <:col :let={line} name="content" label="Content" editable={true}><%= line.content %></:col>
+      <:col :let={line} name="note" label="Note" editable={true}><%= line.note %></:col>
     </.anno_grid>
     """
   end
@@ -150,7 +150,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   defp renumber_lines(rest_of_lines, row_num, offset) do
     result = rest_of_lines
     |> Enum.drop(1)
-    |> Enum.map(fn line -> %{line | "line_number": line.line_number + offset} end)
+    |> Enum.map(fn line -> %{line | line_number: line.line_number + offset} end)
     # Logger.info("inspect result: #{inspect result}")
     result
   end

@@ -20,6 +20,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   slot :col, required: true do
     attr :label, :string
     attr :name, :string
+    attr :editable, :boolean
   end
 
   def anno_grid(assigns) do
@@ -54,14 +55,13 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             tabindex="-1"
             role="gridcell"
             data-focused={@focused_cell == {row_index, col_index}}
-            class={["grid-cell", "#{col[:name]}", @row_click && "hover:cursor-pointer",
+            class={["grid-cell", "w-full", "#{col[:name]}",
               @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500"]}
           >
             <%= if @editing == {row_index, col_index} do %>
-              <div class="w-full">
                 <.form phx-submit="update_cell">
-                  <.input type="hidden" name="row_index" value={row_index}/>
-                  <.input type="hidden" name="col_index" value={col_index}/>
+                  <input type="hidden" name="row_index" value={row_index}/>
+                  <input type="hidden" name="col_index" value={col_index}/>
                   <.input
                     type="textarea"
                     name="value"
@@ -74,12 +74,9 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                     autofocus
                   />
                 </.form>
-              </div>
             <% else %>
-              <div class="h-full" phx-click={@row_click && @row_click.(row_index, col, col_index)}>
-                <span class={[col_index == 0 && "text-zinc-400", "whitespace-pre-wrap"]}>
+              <div class="h-full hover:cursor-pointer" phx-click={@row_click && @row_click.(row_index, col, col_index)}>
                   <%= render_slot(col, @row_item.(row)) %>
-                </span>
               </div>
             <% end %>
           </div>
