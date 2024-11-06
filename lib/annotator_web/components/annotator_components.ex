@@ -48,7 +48,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <div :for={{row, row_index} <- Enum.with_index(@rows)}
           role="row"
           id={@row_id && @row_id.(row)}
-          class="group hover:bg-zinc-100 heyyou grid grid-cols-subgrid col-span-3">
+          class="group hover:bg-zinc-100 grid grid-cols-subgrid col-span-3">
           <div
             :for={{col, col_index} <- Enum.with_index(@col)}
             tabindex="-1"
@@ -60,25 +60,24 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             <%= if @editing == {row_index, col_index} do %>
               <div class="w-full">
                 <.form phx-submit="update_cell">
-                  <input type="hidden" name="row_index" value={row_index}>
-                  <input type="hidden" name="col_index" value={col_index}>
-                  <input
-                    type="text"
+                  <.input type="hidden" name="row_index" value={row_index}/>
+                  <.input type="hidden" name="col_index" value={col_index}/>
+                  <.input
+                    type="textarea"
                     name="value"
                     value={Map.get(row, String.to_existing_atom(col[:name]))}
                     class="w-full p-1 border rounded"
+                    id="form_input"
+                    phx-hook="CtrlEnter"
                     phx-blur="prompt_save_changes"
                     phx-debounce="200"
                     autofocus
                   />
-                  <button type="submit">Save</button>
                 </.form>
               </div>
             <% else %>
-              <div
-                phx-click={@row_click && @row_click.(row_index, col, col_index)}
-              >
-                <span class={[col_index == 0 && "text-zinc-400"]}>
+              <div class="h-full" phx-click={@row_click && @row_click.(row_index, col, col_index)}>
+                <span class={[col_index == 0 && "text-zinc-400", "whitespace-pre-wrap"]}>
                   <%= render_slot(col, @row_item.(row)) %>
                 </span>
               </div>

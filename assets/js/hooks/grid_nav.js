@@ -9,7 +9,7 @@ export const GridNav = {
     };
 
     this.isEditing = () => {
-      return this.el.querySelector('input[type="text"]') !== null;
+      return this.el.querySelector('textarea') !== null;
     };
 
     this.focusCell = () =>  {
@@ -17,34 +17,35 @@ export const GridNav = {
       if (targetCell) {
         targetCell.focus();
       }
-
-      // Push focus event to server
-      this.pushEvent("cell_focused", {
-        row: this.currentRow,
-        col: this.currentCol
-      });
     }
+
+      // Push focus event to server -- not sure we care about this
+    //   this.pushEvent("cell_focused", {
+    //     row: this.currentRow,
+    //     col: this.currentCol
+    //   });
+    // }
 
     this.handleKeyDown = (e) => {
       //The escape key needs to work even if editing
-      if (e.key == 'Escape') {
-        this.pushEvent("cancel_edit");
-        return;
-      }
+      // if (e.key == 'Escape') {
+      //   this.pushEvent("cancel_edit");
+      //   return;
+      // }
 
-      if ((e.ctrlKey || e.metaKey) && e.key == 'Enter') {
-        this.pushEvent("update_cell", {
-          row: this.currentRow,
-          col: this.currentCol
-        });
-        return;
-      }
+      // if ((e.ctrlKey || e.metaKey) && e.key == 'Enter') {
+      //   this.pushEvent("update_cell", {
+      //     row: this.currentRow,
+      //     col: this.currentCol
+      //   });
+      //   return;
+      // }
 
       // Don't handle navigation when editing
       if (this.isEditing()) return;
 
-      // Only handle arrow keys and Enter
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) return;
+      // Only handle arrow keys
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       
       // e.preventDefault();
       
@@ -68,15 +69,6 @@ export const GridNav = {
         case 'ArrowRight':
           this.currentCol = Math.min(maxCol, this.currentCol + 1);
           this.focusCell();
-          break;
-        case 'Enter':
-          const cell = this.getCellAt(this.currentRow, this.currentCol);
-          if (cell) {
-            this.pushEvent("activate_cell", {
-              row: this.currentRow,
-              col: this.currentCol
-            });
-          }
           break;
       }
     };

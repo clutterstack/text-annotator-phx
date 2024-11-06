@@ -23,10 +23,12 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { SelectText } from "./hooks/select_text"
 import { GridNav } from "./hooks/grid_nav"
+import { CtrlEnter } from "./hooks/ctrl-enter"
 
 let Hooks = {
   SelectText: SelectText,
-  GridNav: GridNav
+  GridNav: GridNav,
+  CtrlEnter: CtrlEnter
 }
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")

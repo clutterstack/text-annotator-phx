@@ -31,7 +31,7 @@
   /* For annotator grid component */
 
   .data-grid {
-    @apply w-full max-w-6xl mx-auto grid grid-cols-3 gap-4;
+    @apply w-full max-w-6xl mx-auto grid grid-cols-[min-content_1fr_1fr] gap-4;
   }
   
   .data-grid .grid-row, .data-grid .header {
