@@ -44,15 +44,27 @@
   }
   
   .data-grid .line-num {
-    @apply p-2 text-zinc-400 font-mono border-r;
+    @apply px-2 text-zinc-400 font-mono border-r;
   }
   
   .data-grid .content {
-    @apply p-2 font-mono border-r;
+    @apply px-2 border-r;
   }
   
-  .data-grid .notes {
-    @apply p-2;
+  .data-grid .content pre {
+    @apply mb-2;
+  }
+
+  .data-grid .content textarea {
+    @apply font-mono p-1 border rounded;
+  }
+
+  .data-grid .note {
+    @apply px-2;
+  }
+
+  .data-grid .note p {
+    @apply mb-2;
   }
   
   .data-grid .focused {

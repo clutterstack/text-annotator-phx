@@ -2,6 +2,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   use Phoenix.LiveView
   alias Annotator.DataGridSchema
   alias Phoenix.LiveView.JS
+  alias Phoenix.HTML
   import AnnotatorWeb.AnnotatorComponents
   require Logger
 
@@ -26,12 +27,12 @@ defmodule AnnotatorWeb.TextAnnotator do
       row_click={fn row_index, col, col_index ->
         if col[:name] in ["content", "note"] && @editing == nil do
           JS.push("click_edit", value: %{row_index: row_index, col_index: col_index})
-
         end
-    end}>
+      end}
+          >
       <:col :let={line} name="line-num" label="#" editable={false}><%= line.line_number %></:col>
-      <:col :let={line} name="content" label="Content" editable={true}><%= line.content %></:col>
-      <:col :let={line} name="note" label="Note" editable={true}><%= line.note %></:col>
+      <:col :let={line} name="content" label="Content" editable={true}><pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre></:col>
+      <:col :let={line} name="note" label="Note" editable={true}><div><%= HTML.raw Earmark.as_html!(line.note, breaks: true) %></div></:col>
     </.anno_grid>
     """
   end
@@ -74,7 +75,6 @@ defmodule AnnotatorWeb.TextAnnotator do
   # end
 
   def handle_event("update_cell", %{"row_index" => row_index, "col_index" => col_index, "value" => new_value}, socket) do
-
     Logger.info("update_cell handler called. Check row_index: #{row_index}. Check new_value: #{new_value}")
     if is_binary(row_index), do: Logger.info("row_index is a binary coming into update_cell handler"); row_num = String.to_integer(row_index)
 
@@ -102,13 +102,10 @@ defmodule AnnotatorWeb.TextAnnotator do
       {before_lines, rest} = Enum.split_while(socket.assigns.lines, &(&1.line_number != row_num))
       # Logger.info("before_lines: #{inspect before_lines}")
 
-      {edited_lines, offset}  = split_edited_line(edited_line, row_num)
-      Logger.info("edited_lines, offset: #{inspect before_lines}, #{offset}")
+      {edited_lines, offset}  = process_edited_line(edited_line, row_num)
+      Logger.info("edited_lines, offset: #{inspect edited_lines}, #{offset}")
 
-      after_lines = renumber_lines(rest, row_num, offset)
-      Logger.info("after_lines, with row_num = #{inspect row_num} and offset = #{offset}: #{inspect after_lines}")
-
-      updated_lines = before_lines ++ edited_lines ++ after_lines
+      updated_lines = before_lines ++ edited_lines ++ renumber_lines(rest, offset)
       {:noreply, assign(socket, lines: updated_lines, editing: nil)}
 
     else
@@ -123,32 +120,41 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
+  def handle_event("delete_line", params, socket) do
+    row_num = elem(socket.assigns.editing, 0)
+    {before_lines, rest} = Enum.split_while(socket.assigns.lines, &(&1.line_number != row_num))
+    after_lines = renumber_lines(rest, -1)
+    updated_lines = before_lines ++ after_lines
+    {:noreply, assign(socket, lines: updated_lines, editing: nil)}
+  end
+
 
 # Helper functions
-  defp split_edited_line(line, row_num) do
+  defp process_edited_line(line, row_num) do
     # row_num = String.to_integer(row_index)
+    Logger.info("Row number of the edited line to be processed: #{row_num}")
     content_list = String.split(line.content, "\n")
     num_lines = Enum.count(content_list)
     if num_lines > 1 do
       first_line = %DataGridSchema.Line{line_number: row_num, content: Enum.at(content_list, 0), note: line.note}
-      the_rest = content_list
-      |> Enum.drop(1)
-      |> Stream.with_index(row_num)  # Start index at row_num
-      |> Enum.map(fn {content, i} ->
-        %DataGridSchema.Line{
-          line_number: row_num + i,
-          content: content,
-          note: ""
-        }
-      end)
-      {[first_line | the_rest], num_lines - 1}
+      added_lines = content_list |> Enum.drop(1)
+        |> Stream.with_index(row_num + 1)  # Start index at row_num + 1
+        |> Enum.map(fn {content, i} ->
+          # Logger.info("renumbering new line at #{i}")
+          %DataGridSchema.Line{
+            line_number: i,
+            content: content,
+            note: ""
+          }
+          end)
+      {[first_line | added_lines], num_lines - 1}
     else
       {[line], 0}
     end
   end
 
-  defp renumber_lines(rest_of_lines, row_num, offset) do
-    result = rest_of_lines
+  defp renumber_lines(after_split, offset) do
+    result = after_split
     |> Enum.drop(1)
     |> Enum.map(fn line -> %{line | line_number: line.line_number + offset} end)
     # Logger.info("inspect result: #{inspect result}")

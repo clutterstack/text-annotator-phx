@@ -21,6 +21,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     attr :label, :string
     attr :name, :string
     attr :editable, :boolean
+    attr :markdown, :boolean
   end
 
   def anno_grid(assigns) do
@@ -59,25 +60,9 @@ defmodule AnnotatorWeb.AnnotatorComponents do
               @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500"]}
           >
             <%= if @editing == {row_index, col_index} do %>
-                <.form phx-submit="update_cell">
-                  <input type="hidden" name="row_index" value={row_index}/>
-                  <input type="hidden" name="col_index" value={col_index}/>
-                  <.input
-                    type="textarea"
-                    name="value"
-                    value={Map.get(row, String.to_existing_atom(col[:name]))}
-                    class="w-full p-1 border rounded"
-                    id="form_input"
-                    phx-hook="CtrlEnter"
-                    phx-blur="prompt_save_changes"
-                    phx-debounce="200"
-                    autofocus
-                  />
-                </.form>
+               <.editor row={row}, col={col}, row_index={row_index}, col_index={col_index} />
             <% else %>
-              <div class="h-full hover:cursor-pointer" phx-click={@row_click && @row_click.(row_index, col, col_index)}>
-                  <%= render_slot(col, @row_item.(row)) %>
-              </div>
+              <div class="h-full hover:cursor-pointer" phx-click={@row_click && @row_click.(row_index, col, col_index)}><%= render_slot(col, @row_item.(row)) %></div>
             <% end %>
           </div>
         </div>
@@ -86,9 +71,39 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
+
+
+  attr :row, :any
+  attr :col, :any
+  attr :row_index, :any
+  attr :col_index, :any
+
+  def editor(assigns) do
+    ~H"""
+    <form phx-submit="update_cell">
+      <input type="hidden" name="row_index" value={@row_index}/>
+      <input type="hidden" name="col_index" value={@col_index}/>
+      <textarea
+        class="block w-full h-full min-h-[6rem]"
+        name="value"
+        value={Map.get(@row, String.to_existing_atom(@col[:name]))}
+        id="form_input"
+        phx-hook="CtrlEnter"
+        data-row-index={@row_index}
+        phx-data-blah="ROW INDEX"
+        phx-blur="prompt_save_changes"
+        phx-debounce="200"
+        autofocus
+      ><%= Phoenix.HTML.Form.normalize_value("textarea", Map.get(@row, String.to_existing_atom(@col[:name]))) %></textarea>
+    </form>
+    """
+  end
+
+
   attr :chunk, :map, required: true
 
   def text_with_highlights(assigns) do
+    # This isn't used anywhere in this branch
     Logger.info("text_with_highlights is being called; chunk is #{inspect(assigns.chunk)}")
     high_start = assigns.chunk.highlight_start
     high_end = assigns.chunk.highlight_end

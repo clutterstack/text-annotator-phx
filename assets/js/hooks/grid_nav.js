@@ -28,10 +28,10 @@ export const GridNav = {
 
     this.handleKeyDown = (e) => {
       //The escape key needs to work even if editing
-      // if (e.key == 'Escape') {
-      //   this.pushEvent("cancel_edit");
-      //   return;
-      // }
+      if (e.key == 'Escape') {
+        this.pushEvent("cancel_edit");
+        return;
+      }
 
       // if ((e.ctrlKey || e.metaKey) && e.key == 'Enter') {
       //   this.pushEvent("update_cell", {
