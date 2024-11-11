@@ -1,6 +1,5 @@
 defmodule AnnotatorWeb.AnnotatorComponents do
   use Phoenix.Component
-  import AnnotatorWeb.CoreComponents
   require Logger
 
   # use AnnotatorWeb, :html
@@ -60,7 +59,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
               @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500"]}
           >
             <%= if @editing == {row_index, col_index} do %>
-               <.editor row={row}, col={col}, row_index={row_index}, col_index={col_index} />
+               <.editor row={row} col={col} row_index={row_index} col_index={col_index} />
             <% else %>
               <div class="h-full hover:cursor-pointer" phx-click={@row_click && @row_click.(row_index, col, col_index)}><%= render_slot(col, @row_item.(row)) %></div>
             <% end %>
@@ -79,6 +78,11 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :col_index, :any
 
   def editor(assigns) do
+    # This is a form and stores row_index and col_index in hidden inputs so that the
+    # phx-submit event is all precooked. I could instead use those values straight
+    # from the socket assigns in the update_cell handler, but I'm holding off because
+    # when it comes time to save things to a database, I may want to do things the
+    # forms way with validation or something
     ~H"""
     <form phx-submit="update_cell">
       <input type="hidden" name="row_index" value={@row_index}/>
@@ -103,7 +107,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :chunk, :map, required: true
 
   def text_with_highlights(assigns) do
-    # This isn't used anywhere in this branch
+    # This isn't used anywhere in this branch but it works
     Logger.info("text_with_highlights is being called; chunk is #{inspect(assigns.chunk)}")
     high_start = assigns.chunk.highlight_start
     high_end = assigns.chunk.highlight_end

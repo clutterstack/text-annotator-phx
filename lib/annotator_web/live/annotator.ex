@@ -120,7 +120,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  def handle_event("delete_line", params, socket) do
+  def handle_event("delete_line", _params, socket) do
     row_num = elem(socket.assigns.editing, 0)
     {before_lines, rest} = Enum.split_while(socket.assigns.lines, &(&1.line_number != row_num))
     after_lines = renumber_lines(rest, -1)
@@ -129,7 +129,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
 
-# Helper functions
+  # Helper functions
   defp process_edited_line(line, row_num) do
     # row_num = String.to_integer(row_index)
     Logger.info("Row number of the edited line to be processed: #{row_num}")
