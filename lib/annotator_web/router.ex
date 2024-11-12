@@ -16,8 +16,10 @@ defmodule AnnotatorWeb.Router do
 
   scope "/", AnnotatorWeb do
     pipe_through :browser
-    live "/", TextAnnotator
-    # get "/", PageController, :home
+    live "/", CollectionLive.Index
+    live "/collections", CollectionLive.Index
+    live "/collections/new", TextAnnotator
+    live "/collections/:id", TextAnnotator
   end
 
   # Other scopes may use custom stacks.

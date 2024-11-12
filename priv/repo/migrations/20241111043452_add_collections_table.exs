@@ -12,8 +12,8 @@ defmodule Annotator.Repo.Migrations.AddCollectionsAndLinesTables do
     create table(:lines) do
       add :collection_id, references(:collections, on_delete: :delete_all), null: false
       add :line_number, :integer, null: false
-      add :content, :string
-      add :note, :string
+      add :content, :string, default: ""
+      add :note, :string, default: ""
       timestamps(type: :utc_datetime)
     end
 

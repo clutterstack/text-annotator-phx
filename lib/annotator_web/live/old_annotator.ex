@@ -1,4 +1,4 @@
-defmodule AnnotatorWeb.TextAnnotator do
+defmodule AnnotatorWeb.OldTextAnnotator do
   use Phoenix.LiveView
   alias Annotator.DataGridSchema
   alias Phoenix.LiveView.JS
@@ -9,7 +9,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   def mount(_params, _session, socket) do
     Logger.info("TextAnnotator liveview mount -- all the assigns get reset when this happens")
     {:ok, assign(socket,
-      lines: [%DataGridSchema.Line{id: "one", line_number: 0, content: "Here's some content", note: "Here's a note on row number 0"},
+      lines: [%DataGridSchema.Line{line_number: 0, content: "", note: ""},
         %DataGridSchema.Line{id: "two", line_number: 1, content: "Here's two content and I need to make it longer so it'll wrap; hey, let's put that in the seed content. [Wait I need some special \\ characters /]", note: "Here's a note on row number 1"},
         %DataGridSchema.Line{id: "three", line_number: 2, content: "Third content", note: "Third note"}
         ],

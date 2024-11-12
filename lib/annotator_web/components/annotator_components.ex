@@ -95,7 +95,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         phx-hook="CtrlEnter"
         data-row-index={@row_index}
         phx-data-blah="ROW INDEX"
-        phx-blur="prompt_save_changes"
         phx-debounce="200"
         autofocus
       ><%= Phoenix.HTML.Form.normalize_value("textarea", Map.get(@row, String.to_existing_atom(@col[:name]))) %></textarea>
