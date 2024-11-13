@@ -10,13 +10,14 @@ defmodule AnnotatorWeb.AnnotatorComponents do
 
   attr :id, :string, required: true
   attr :rows, :list, required: true
-  attr :chunks, :list, required: true
+  attr :chunks, :list
   attr :row_click, :any, default: nil
 
   slot :col, required: true do
     attr :label, :string
     attr :name, :string
     attr :editable, :boolean
+    attr :deletable, :boolean
   end
 
   def anno_grid(assigns) do
@@ -43,6 +44,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
               :for={{col, col_index} <- Enum.with_index(@col)}
               tabindex="-1"
               role="gridcell"
+              data-deletable={inspect is_deletable?(col)}
               data-focused={@focused_cell == {row_index, col_index}}
               class={[
                 "p-3 min-h-[3rem]",
@@ -107,6 +109,14 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
   defp is_selected?(_, _), do: false
 
+  # Helper function to handle the default value for deletable
+  defp is_deletable?(col) do
+    case col[:deletable] do
+      nil -> false  # Default value when attribute is not specified
+      value ->
+        value
+    end
+  end
   # Get the note for a line from its associated chunk
   defp get_chunk_note(chunks, line_id) do
     case Enum.find(chunks, fn chunk ->
@@ -115,12 +125,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       nil -> nil
       chunk -> chunk.note
     end
-  end
-
-  defp has_chunk?(chunks, line_id) do
-    Enum.any?(chunks, fn chunk ->
-      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
-    end)
   end
 
   defp get_chunk_id(chunks, line_id) do

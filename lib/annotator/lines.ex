@@ -10,7 +10,7 @@ defmodule Annotator.Lines do
 
 
   # Claude suggested some of these.
-  # Untested. Upsert is mine.
+  # Untested. Upsert is (was) mine.
 
   # Get a collection with its lines
   def get_collection_with_lines(id) do
@@ -33,18 +33,18 @@ defmodule Annotator.Lines do
     |> Repo.insert()
   end
 
-  # Bulk insert lines
-  def create_lines(collection_id, lines_attrs) do
-    lines_attrs
-    |> Enum.map(fn attrs ->
-      %{collection_id: collection_id} |> Map.merge(attrs)
-    end)
-    |> Enum.map(&(Line.changeset(%Line{}, &1)))
-    |> Enum.reduce(Ecto.Multi.new(), fn changeset, multi ->
-      Ecto.Multi.insert(multi, {:line, changeset.changes.line_number}, changeset)
-    end)
-    |> Repo.transaction()
-  end
+  # Bulk insert lines -- superseded?
+  # def create_lines(collection_id, lines_attrs) do
+  #   lines_attrs
+  #   |> Enum.map(fn attrs ->
+  #     %{collection_id: collection_id} |> Map.merge(attrs)
+  #   end)
+  #   |> Enum.map(&(Line.changeset(%Line{}, &1)))
+  #   |> Enum.reduce(Ecto.Multi.new(), fn changeset, multi ->
+  #     Ecto.Multi.insert(multi, {:line, changeset.changes.line_number}, changeset)
+  #   end)
+  #   |> Repo.transaction()
+  # end
 
   @doc """
   Returns the list of collections.
@@ -101,14 +101,14 @@ defmodule Annotator.Lines do
       handle_content_split!(collection_id, line_number, value)
     else
       # Get existing line to preserve other fields
-      existing_line = case Repo.one(
-        from l in Line,
-        where: l.collection_id == ^collection_id and l.line_number == ^line_number,
-        preload: [chunks: :chunk_lines]  # Preload to ensure we preserve chunk associations
-      ) do
-        nil -> %Line{content: ""}
-        line -> line
-      end
+      # existing_line = case Repo.one(
+      #   from l in Line,
+      #   where: l.collection_id == ^collection_id and l.line_number == ^line_number,
+      #   preload: [chunks: :chunk_lines]  # Preload to ensure we preserve chunk associations
+      # ) do
+      #   nil -> %Line{content: ""}
+      #   line -> line
+      # end
 
       # Create attrs map with just the content update
       attrs = %{
@@ -158,24 +158,28 @@ defmodule Annotator.Lines do
         }
       end)
 
-      {_, _} = Repo.insert_all(
+      {_, lines} = Repo.insert_all(
         Line,
         new_lines,
         on_conflict: {:replace, [:content, :updated_at]},
-        conflict_target: [:collection_id, :line_number]
+        conflict_target: [:collection_id, :line_number],
+        returning: true
       )
 
       # If the original line was part of any chunks, we need to update chunk_lines
       # to include all the new lines in those chunks
       if original_line && Enum.any?(original_line.chunks) do
-        new_line_ids = from(l in Line,
-          where: l.collection_id == ^collection_id and
-                 l.line_number >= ^start_line_number and
-                 l.line_number < ^(start_line_number + new_lines_count),
-          select: l.id
-        ) |> Repo.all()
+        # Get IDs of newly inserted lines
+        new_line_ids = Enum.map(lines, & &1.id)
 
         Enum.each(original_line.chunks, fn chunk ->
+          # First, remove the original line from the chunk
+          {_, _} = Repo.delete_all(
+            from cl in ChunkLine,
+            where: cl.chunk_id == ^chunk.id and cl.line_id == ^original_line.id
+          )
+
+          # Then insert associations for all the new lines
           chunk_line_attrs = Enum.map(new_line_ids, fn line_id ->
             %{
               chunk_id: chunk.id,
@@ -185,7 +189,8 @@ defmodule Annotator.Lines do
             }
           end)
 
-          Repo.insert_all(ChunkLine, chunk_line_attrs)
+          # Use on_conflict: :nothing to handle any potential duplicates
+          Repo.insert_all(ChunkLine, chunk_line_attrs, on_conflict: :nothing)
         end)
       end
 

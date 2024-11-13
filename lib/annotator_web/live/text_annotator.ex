@@ -68,13 +68,13 @@ defmodule AnnotatorWeb.TextAnnotator do
             JS.push("click_edit", value: %{row_index: to_string(row_index), col_index: to_string(col_index)})
           end}
         >
-          <:col :let={line} name="line-num" label="#" editable={false}>
+          <:col :let={line} name="line-num" label="#" editable={false} deletable={false}>
             <%= line.line_number %>
           </:col>
-          <:col :let={line} name="content" label="Content" editable={true}>
+          <:col :let={line} name="content" label="Content" editable={true} deletable={true}>
             <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
           </:col>
-          <:col :let={line} name="note" label="Note" editable={true}>
+          <:col :let={line} name="note" label="Note" editable={true} deletable={false}>
             <div class="text-gray-400">No note</div>
           </:col>
         </.anno_grid>

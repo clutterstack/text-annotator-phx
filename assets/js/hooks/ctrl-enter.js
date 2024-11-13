@@ -22,9 +22,12 @@ export const CtrlEnter = {
                 ));
             }
             if (this.el.value == '' && e.key === 'Backspace') {
-                console.log("detected backspace in empty line; emitting delete_line event");
-                const rowIndex = this.el.dataset.rowIndex;
-                this.pushEvent('delete_line');
+                const cell = this.el.closest('[role="gridcell"]');
+                if (cell.dataset.deletable === "true") {
+                    console.log("detected backspace in empty deletable cell; emitting delete_line event");
+                    const rowIndex = this.el.dataset.rowIndex;
+                    this.pushEvent('delete_line');
+                }
             }
         })
       }
