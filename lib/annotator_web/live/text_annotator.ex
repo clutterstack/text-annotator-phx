@@ -1,195 +1,319 @@
 defmodule AnnotatorWeb.TextAnnotator do
   use AnnotatorWeb, :live_view
   alias Annotator.Lines
-  alias Annotator.Lines.Line
+  alias Annotator.Lines.{Line, Chunk}
   import AnnotatorWeb.AnnotatorComponents
-  import AnnotatorWeb.CoreComponents
   require Logger
+  alias Annotator.Repo
+
 
   def mount(%{"id" => id}, _session, socket) do
-    # Editing existing collection
-    collection = Lines.get_collection_with_lines(id)
-    {:ok, assign(socket,
-      collection: collection,
-      lines: collection.lines,
-      focused_cell: {0, 1},
-      editing: nil
-    )}
+    case Lines.get_collection_with_lines(id) do
+      nil ->
+        {:ok,
+          socket
+          |> put_flash(:error, "Collection not found")
+          |> push_navigate(to: ~p"/collections")}
+
+      collection ->
+        chunks = Lines.list_chunks(collection.id)
+        lines = collection.lines |> ensure_one_line()
+
+        {:ok, assign(socket,
+          collection: collection,
+          lines: lines,
+          chunks: chunks,
+          focused_cell: {0, 1},
+          editing: nil,
+          selection: nil,
+          active_chunk: nil
+        )}
+    end
   end
 
   def mount(_params, _session, socket) do
-    # New collection
+    # New collection - no chunks yet
     {:ok, assign(socket,
       collection: nil,
-      lines: [%Line{line_number: 0, content: "", note: ""}],
+      lines: [%Line{line_number: 0, content: ""}],
+      chunks: [],
       focused_cell: {0, 1},
       editing: nil,
+      selection: nil,
+      active_chunk: nil,
       form: to_form(%{"name" => ""})
     )}
   end
 
   def render(assigns) do
     ~H"""
-    <.modal :if={!@collection} id="collection-name-modal" show={true}>
-      <div class="space-y-6 py-4">
-        <h2 class="text-lg font-semibold leading-7 text-zinc-900">
-          New Collection
-        </h2>
-
-        <.form
-          for={@form}
-          phx-submit="create_collection"
-          id="collection-form"
-        >
-          <.input type="text" field={@form[:name]} label="Collection Name" required />
-          <div class="mt-6 flex justify-end gap-3">
-            <.button phx-disable-with="Creating...">Start Annotating</.button>
-          </div>
-        </.form>
-      </div>
-    </.modal>
-
-
     <div class="mx-auto max-w-4xl">
-      <%= if @collection do %>
-        <div class="mb-4 flex justify-between items-center">
-          <h1 class="text-2xl font-bold"><%= @collection.name %></h1>
-          <.link navigate={~p"/collections"} class="text-zinc-600 hover:text-zinc-900">
-            Back to Collections
-          </.link>
-        </div>
-      <% end %>
+      <.modal :if={!@collection} id="collection-name-modal" show={true}>
+        <.simple_form for={@form} phx-submit="create_collection">
+          <.input field={@form[:name]} label="Collection Name" required />
+          <:actions>
+            <.button phx-disable-with="Creating...">Create Collection</.button>
+          </:actions>
+        </.simple_form>
+      </.modal>
 
-      <.anno_grid
-        id="this-annotated-content"
-        rows={@lines}
-        editing={@editing}
-        row_click={fn row_index, col, col_index ->
-          if col[:name] in ["content", "note"] && @editing == nil do
-            JS.push("click_edit", value: %{row_index: row_index, col_index: col_index})
-          end
-        end}
-      >
-        <:col :let={line} name="line-num" label="#" editable={false}><%= line.line_number %></:col>
-        <:col :let={line} name="content" label="Content" editable={true}>
-          <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
-        </:col>
-        <:col :let={line} name="note" label="Note" editable={true}>
-          <div><%= raw(Earmark.as_html!(line.note, breaks: true)) %></div>
-        </:col>
-      </.anno_grid>
+      <div class="space-y-8 py-8">
+        <.anno_grid
+          id="annotated-content"
+          rows={@lines}
+          chunks={@chunks}
+          editing={@editing}
+          selection={@selection}
+          row_click={fn row_index, col, col_index ->
+            JS.push("click_edit", value: %{row_index: to_string(row_index), col_index: to_string(col_index)})
+          end}
+        >
+          <:col :let={line} name="line-num" label="#" editable={false}>
+            <%= line.line_number %>
+          </:col>
+          <:col :let={line} name="content" label="Content" editable={true}>
+            <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
+          </:col>
+          <:col :let={line} name="note" label="Note" editable={true}>
+            <div class="text-gray-400">No note</div>
+          </:col>
+        </.anno_grid>
+      </div>
     </div>
     """
+  end
+
+  # Fix click handling
+  def handle_event("click_edit", %{"row_index" => row_index_str, "col_index" => col_index_str}, socket) do
+    Logger.info("in click_edit handler")
+    Logger.info("row_index: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
+
+    row_index = String.to_integer(row_index_str)
+    col_index = String.to_integer(col_index_str)
+    line = Enum.at(socket.assigns.lines, row_index)
+
+    case col_index_str do
+      # Content column
+      "1" ->
+        Logger.info("click_edit in content cell; should start editing {#{row_index}, #{col_index}}")
+        Logger.info("check line.content: #{line.content}")
+        {:noreply, assign(socket,
+          editing: {row_index_str, col_index_str},
+          edit_text: line.content || ""
+        )}
+
+      # Note column
+      "2" ->
+        Logger.info("click_edit in note cell; should call handle_note_click with row_index_str {#{row_index_str}}")
+
+        handle_note_click(socket, line, row_index_str)
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  defp handle_note_click(socket, line, row_index_str) do
+    Logger.info("inside handle_note_click")
+    Logger.info("row_index_str: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
+
+    case {socket.assigns.selection, get_chunk_for_line(socket.assigns.chunks, line.id)} do
+      {nil, %Chunk{} = chunk} ->
+        # Clicking an existing chunk - start editing it
+        Logger.info("selection is nil and get_chunk_for_line returned a chunk")
+
+        {:noreply, assign(socket,
+          active_chunk: chunk.id,
+          editing: {row_index_str, "2"},  # Start editing the note cell
+          edit_text: chunk.note,
+          selection: %{
+            start_line: line.id,
+            end_line: line.id,
+            note: chunk.note,
+            chunk_id: chunk.id
+          }
+        )}
+
+      {nil, nil} ->
+        Logger.info("selection is nil and get_chunk_for_line returned nil")
+
+        # Starting a new selection
+        {:noreply, assign(socket,
+          editing: {row_index_str, "2"},  # Start editing the note cell
+          edit_text: "",
+          selection: %{
+            start_line: line.id,
+            end_line: line.id,
+            note: "",
+            chunk_id: nil
+          }
+        )}
+
+      {selection, _} ->
+        Logger.info("selection is something and it's not checking for a chunk")
+
+        # Expanding existing selection
+        {:noreply, assign(socket,
+          selection: %{selection | end_line: line.id}
+        )}
+    end
+  end
+
+  defp ensure_one_line([]), do: [%Line{line_number: 0, content: ""}]
+  defp ensure_one_line(lines), do: lines
+
+  defp get_chunk_for_line(chunks, line_id) do
+    Enum.find(chunks, fn chunk ->
+      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
+    end)
+  end
+
+  def handle_event("update_cell", %{"row_index" => row_index, "col_index" => "1", "value" => value}, socket) do
+    Logger.info("is_binary(row_index)? #{is_binary(row_index)}")
+    row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
+    # collection_id = socket.assigns.collection.id
+    line = Enum.at(socket.assigns.lines, row_num)
+    handle_content_update(socket, line, value)
+  end
+
+  # Add a new event handler for when note editing is complete:
+def handle_event("update_cell", %{"row_index" => _row_index, "col_index" => "2", "value" => value}, socket) do
+  case socket.assigns.selection do
+    %{chunk_id: chunk_id} when not is_nil(chunk_id) ->
+      # Updating existing chunk
+      case Lines.update_chunk(
+        Repo.get!(Chunk, chunk_id),
+        get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
+        value
+      ) do
+        {:ok, _chunk} ->
+          chunks = Lines.list_chunks(socket.assigns.collection.id)
+          {:noreply, assign(socket,
+            chunks: chunks,
+            editing: nil,
+            selection: nil,
+            active_chunk: nil
+          )}
+
+        {:error, changeset} ->
+          {:noreply,
+            socket
+            |> put_flash(:error, "Error updating note: #{error_to_string(changeset)}")
+            |> assign(editing: nil)}
+      end
+
+    _ ->
+      # Creating new chunk
+      case Lines.create_chunk(
+        socket.assigns.collection.id,
+        get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
+        value
+      ) do
+        {:ok, _chunk} ->
+          chunks = Lines.list_chunks(socket.assigns.collection.id)
+          {:noreply, assign(socket,
+            chunks: chunks,
+            editing: nil,
+            selection: nil,
+            active_chunk: nil
+          )}
+
+        {:error, changeset} ->
+          {:noreply,
+            socket
+            |> put_flash(:error, "Error creating note: #{error_to_string(changeset)}")
+            |> assign(editing: nil)}
+      end
+  end
+end
+
+  defp handle_content_update(socket, line, value) do
+    case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
+      {:ok, _} ->
+        # Get fresh data since content updates might split lines
+        collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+        chunks = Lines.list_chunks(collection.id)
+        {:noreply, assign(socket,
+          collection: collection,
+          lines: collection.lines,
+          chunks: chunks,
+          editing: nil
+        )}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
+         |> assign(editing: nil)}
+    end
+  end
+
+  # Add helper function to get line IDs in selection range:
+  defp get_selected_line_ids(%{start_line: start_id, end_line: end_id}, lines) do
+    lines
+    |> Enum.sort_by(& &1.line_number)
+    |> Enum.filter(fn line ->
+      line.id >= min(start_id, end_id) and line.id <= max(start_id, end_id)
+    end)
+    |> Enum.map(& &1.id)
   end
 
   def handle_event("create_collection", %{"name" => name}, socket) do
     case Lines.create_collection(%{name: name}) do
       {:ok, collection} ->
         # Save initial empty line
-        {:ok, _line} = Lines.add_line(collection.id, %{
+        {:ok, line} = Lines.add_line(collection.id, %{
           line_number: 0,
           content: "",
-          note: ""
         })
 
+        lines = [line]
+        chunks = []
+
         {:noreply,
-         socket
-         |> assign(collection: collection, show_name_modal: false)
-         |> put_flash(:info, "Collection created successfully")}
+          socket
+          |> assign(
+            collection: collection,
+            lines: lines,
+            chunks: chunks,
+            editing: nil,
+            selection: nil,
+            active_chunk: nil
+          )
+          |> put_flash(:info, "Collection created successfully")}
 
       {:error, changeset} ->
         {:noreply,
-         socket
-         |> put_flash(:error, error_to_string(changeset))
-         |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
+          socket
+          |> put_flash(:error, error_to_string(changeset))
+          |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
     end
   end
 
-
-  def handle_event("click_edit", %{"row_index" => row_index, "col_index" => col_index}, socket) do
-    Logger.info("click_edit handler. {row_index, col_index}: {#{row_index}, #{col_index}}")
-    if socket.assigns.editing == nil do
-      {:noreply, assign(socket, editing: {row_index, col_index})}
-    else
-      Logger.info("start_edit event but already editing")
-      {:noreply, socket}
-    end
+  def handle_event("clear_selection", _params, socket) do
+    {:noreply, assign(socket, selection: nil, active_chunk: nil)}
   end
 
-  # def handle_event("click_focus", %{"row_index" => row_index, "col_index" => col_index}, socket) do
-  #   Logger.info("click_focus handler. {row_index, col_index}: {#{row_index}, #{col_index}}")
-  #   {:noreply, assign(socket, focused_cell: {row_index, col_index})}
-  # end
-
-
-  def handle_event("cancel_edit", _params, socket) do
-    Logger.info("cancel_edit handler triggered")
-    {:noreply, assign(socket, editing: nil)}
-  end
-
-  # Handle cell focus from JS hook
-  # def handle_event("cell_focused", %{"row" => row_index, "col" => col_index}, socket) do
-  #   # Convert row_index to line_number if needed
-  #   line = Enum.at(socket.assigns.lines, row_index)
-  #   if line do
-  #     {:noreply, assign(socket, focused_cell: {line.line_number, col_index})}
-  #   else
-  #     {:noreply, socket}
-  #   end
-  # end
-
-  def handle_event("update_cell", %{"row_index" => row_index, "col_index" => col_index, "value" => new_value}, socket) do
-    row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
-    collection_id = socket.assigns.collection.id
-
-    field = case col_index do
-      "1" -> :content
-      "2" -> :note
-      _ -> nil
-    end
-
-    case field && Lines.update_line!(collection_id, row_num, field, new_value) do
-      {:ok, _} ->
-        # Refresh collection data
-        collection = Lines.get_collection_with_lines(collection_id)
-        {:noreply, assign(socket, lines: collection.lines, editing: nil)}
+  def handle_event("split_chunk", %{"chunk_id" => chunk_id, "line_number" => line_number}, socket) do
+    case Lines.split_chunk(chunk_id, line_number) do
+      {:ok, {_first, _second}} ->
+        chunks = Lines.list_chunks(socket.assigns.collection.id)
+        {:noreply, assign(socket, chunks: chunks)}
 
       {:error, reason} ->
-        Logger.error("Failed to update line: #{inspect(reason)}")
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to update line")
-         |> assign(editing: nil)}
-
-      nil ->
-        {:noreply, socket}
+        {:noreply, put_flash(socket, :error, "Error splitting chunk: #{inspect(reason)}")}
     end
   end
 
-  def handle_event("delete_line", _params, socket) do
-    row_num = elem(socket.assigns.editing, 0)
-    collection_id = socket.assigns.collection.id
-
-    case Lines.delete_line!(collection_id, row_num) do
-      {:ok, _} ->
-        collection = Lines.get_collection_with_lines(collection_id)
-        {:noreply, assign(socket, lines: collection.lines, editing: nil)}
+  def handle_event("merge_chunks", %{"chunk1_id" => id1, "chunk2_id" => id2}, socket) do
+    case Lines.merge_chunks(id1, id2) do
+      {:ok, _merged} ->
+        chunks = Lines.list_chunks(socket.assigns.collection.id)
+        {:noreply, assign(socket, chunks: chunks)}
 
       {:error, reason} ->
-        Logger.error("Failed to delete line: #{inspect(reason)}")
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to delete line")
-         |> assign(editing: nil)}
+        {:noreply, put_flash(socket, :error, "Error merging chunks: #{inspect(reason)}")}
     end
-  end
-
-  def create_data_grid(content) do
-    String.split(content, "\n")
-    |> Enum.with_index(1)
-    |> Enum.map(fn {line, index} ->
-      %Annotator.Lines.Line{line_number: index, content: line, note: ""}
-    end)
   end
 
   defp error_to_string(changeset) do
@@ -198,9 +322,7 @@ defmodule AnnotatorWeb.TextAnnotator do
         String.replace(acc, "%{#{key}}", to_string(value))
       end)
     end)
-    |> Enum.reduce("", fn {k, v}, acc ->
-      joined_errors = Enum.join(v, "; ")
-      "#{acc}#{k}: #{joined_errors}\n"
-    end)
+    |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, "; ")}" end)
+    |> Enum.join("\n")
   end
 end

@@ -2,67 +2,69 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   use Phoenix.Component
   require Logger
 
-  # use AnnotatorWeb, :html
-  attr :editing, :any, default: nil, doc: "tuple of {row_id, column} currently being edited"
-  attr :focused_cell, :any, default: nil, doc: "tuple of {row_index, col_index} currently focused"
+  attr :editing, :any, default: nil
+  attr :edit_text, :string, default: ""
+  attr :focused_cell, :any, default: nil
+  attr :selection, :any, default: nil
+  attr :active_chunk, :any, default: nil
 
-  attr :id, :string, default: "the_grid" # needed for phx-update on the data-grid element
-  attr :rows, :map, required: true
-  attr :row_id, :any, default: nil, doc: "the function for generating the row id"
-  attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
-  # This attr gets used like `phx-click={@row_click && @row_click.(row)}`  which tells us approximately "if the row_click attr exists, pass the value of `row` to it and pass that to phx-click." Sort of.
-
-  attr :row_item, :any,
-    default: &Function.identity/1,
-    doc: "the function for mapping each row before calling the :col and :action slots"
+  attr :id, :string, required: true
+  attr :rows, :list, required: true
+  attr :chunks, :list, required: true
+  attr :row_click, :any, default: nil
 
   slot :col, required: true do
     attr :label, :string
     attr :name, :string
     attr :editable, :boolean
-    attr :markdown, :boolean
   end
 
   def anno_grid(assigns) do
-    # This is a function that creates an assign for every row, I think. Something
-    # to do with LiveStream and dynamic IDs.
-    assigns =
-      with %{lines: %Phoenix.LiveView.LiveStream{}} <- assigns do
-        assign(assigns, row_id: assigns.row_id || fn {id, _item} -> id end)
-      end
     ~H"""
-    <div class="data-grid"
-      role="grid"
-      tabindex="0"
-      id={@id}
-      phx-hook="GridNav"
-      aria-label="Code content and notes"
-      phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
-      >
-      <div role="rowgroup" class="grid grid-cols-subgrid col-span-3">
-        <div role="row" class="header grid grid-cols-subgrid col-span-3">
-          <div :for={col <- @col} role="columnheader" aria-sort="none"
-            class={["#{col[:name]}"]}><%= col[:label] %></div>
+    <div class="w-full" role="grid" tabindex="0" id={@id} phx-hook="GridNav">
+      <div class="border rounded-lg overflow-hidden bg-white">
+        <div role="rowgroup">
+          <div role="row" class="grid grid-cols-[80px_1fr_1fr] border-b bg-zinc-50">
+            <div :for={col <- @col} role="columnheader" class="p-3 text-sm font-medium text-zinc-500">
+              <%= col[:label] %>
+            </div>
+          </div>
         </div>
-      </div>
-      <div role="rowgroup" class="grid grid-cols-subgrid col-span-3">
-        <div :for={{row, row_index} <- Enum.with_index(@rows)}
-          role="row"
-          id={@row_id && @row_id.(row)}
-          class="group hover:bg-zinc-100 grid grid-cols-subgrid col-span-3">
-          <div
-            :for={{col, col_index} <- Enum.with_index(@col)}
-            tabindex="-1"
-            role="gridcell"
-            data-focused={@focused_cell == {row_index, col_index}}
-            class={["grid-cell", "w-full", "#{col[:name]}",
-              @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500"]}
-          >
-            <%= if @editing == {row_index, col_index} do %>
-               <.editor row={row} col={col} row_index={row_index} col_index={col_index} />
-            <% else %>
-              <div class="h-full hover:cursor-pointer" phx-click={@row_click && @row_click.(row_index, col, col_index)}><%= render_slot(col, @row_item.(row)) %></div>
-            <% end %>
+        <div role="rowgroup">
+          <div :for={{row, row_index} <- Enum.with_index(@rows)}
+            role="row"
+            class={[
+              "grid grid-cols-[80px_1fr_1fr]",
+              "group hover:bg-zinc-50",
+              is_selected?(@selection, row.id) && "bg-blue-50",
+              row_index != length(@rows) - 1 && "border-b"
+            ]}>
+            <div
+              :for={{col, col_index} <- Enum.with_index(@col)}
+              tabindex="-1"
+              role="gridcell"
+              data-focused={@focused_cell == {row_index, col_index}}
+              class={[
+                "p-3 min-h-[3rem]",
+                col_index != length(@col) - 1 && "border-r",
+                @focused_cell == {row_index, col_index} && "ring-2 ring-blue-500",
+                col[:name] == "note" && "relative group",
+                col[:editable] && "hover:cursor-pointer hover:bg-zinc-100/50"
+              ]}
+              phx-click={@row_click && @row_click.(row_index, col, col_index)}
+            >
+              <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
+                <.editor
+                  row={row}
+                  col={col}
+                  row_index={row_index}
+                  col_index={col_index}
+                  edit_text={@edit_text}
+                />
+              <% else %>
+                <%= render_slot(col, row) %>
+              <% end %>
+            </div>
           </div>
         </div>
       </div>
@@ -70,60 +72,42 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
-
-
-  attr :row, :any
-  attr :col, :any
-  attr :row_index, :any
-  attr :col_index, :any
-
+  attr :row_index, :integer, required: true
   def editor(assigns) do
-    # This is a form and stores row_index and col_index in hidden inputs so that the
-    # phx-submit event is all precooked. I could instead use those values straight
-    # from the socket assigns in the update_cell handler, but I'm holding off because
-    # when it comes time to save things to a database, I may want to do things the
-    # forms way with validation or something
     ~H"""
     <form phx-submit="update_cell">
       <input type="hidden" name="row_index" value={@row_index}/>
       <input type="hidden" name="col_index" value={@col_index}/>
       <textarea
-        class="block w-full h-full min-h-[6rem]"
+        class="block w-full h-full min-h-[6rem] p-2 border rounded"
         name="value"
-        value={Map.get(@row, String.to_existing_atom(@col[:name]))}
-        id="form_input"
+        id={"editor-#{@row_index}-#{@col_index}"}
         phx-hook="CtrlEnter"
         data-row-index={@row_index}
-        phx-data-blah="ROW INDEX"
         phx-debounce="200"
         autofocus
-      ><%= Phoenix.HTML.Form.normalize_value("textarea", Map.get(@row, String.to_existing_atom(@col[:name]))) %></textarea>
+      ><%= if @col[:name] == "content", do: @row.content || "", else: @edit_text %></textarea>
     </form>
     """
   end
 
+  defp is_selected?(%{start_line: start_id, end_line: end_id}, line_id) when not is_nil(start_id) do
+    line_id >= min(start_id, end_id) and line_id <= max(start_id, end_id)
+  end
+  defp is_selected?(_, _), do: false
 
-  attr :chunk, :map, required: true
+  defp has_chunk?(chunks, line_id) do
+    Enum.any?(chunks, fn chunk ->
+      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
+    end)
+  end
 
-  def text_with_highlights(assigns) do
-    # This isn't used anywhere in this branch but it works
-    Logger.info("text_with_highlights is being called; chunk is #{inspect(assigns.chunk)}")
-    high_start = assigns.chunk.highlight_start
-    high_end = assigns.chunk.highlight_end
-
-    {start_pos, end_pos} = if high_start <= high_end do
-      {high_start, high_end}
-    else
-      {high_end, high_start}
+  defp get_chunk_id(chunks, line_id) do
+    case Enum.find(chunks, fn chunk ->
+      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
+    end) do
+      nil -> nil
+      chunk -> chunk.id
     end
-    assigns = assign(assigns, start_pos: start_pos, end_pos: end_pos)
-
-    ~H"""
-    <%= String.slice(@chunk.text, 0, @start_pos) %>
-    <span class="bg-yellow-200">
-      <%= String.slice(@chunk.text, @start_pos, @end_pos - @start_pos) %>
-    </span>
-    <%= String.slice(@chunk.text, @end_pos..-1//1) %>
-    """
   end
 end
