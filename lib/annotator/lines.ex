@@ -225,6 +225,76 @@ defmodule Annotator.Lines do
     end)
   end
 
+    @doc """
+  Deletes a line and updates related line numbers and chunk associations.
+
+  Returns {:ok, deleted_line} on success or {:error, reason} on failure.
+  """
+  def delete_line(collection_id, line_id) do
+    line = Repo.get_by!(Line, id: line_id, collection_id: collection_id)
+
+    # Start a transaction since we need to maintain consistency
+    # across multiple related updates
+    Repo.transaction(fn ->
+      # First delete any chunk_lines referencing this line
+      {_deleted_count, _} = from(cl in ChunkLine,
+        where: cl.line_id == ^line_id
+      )
+      |> Repo.delete_all()
+
+      # Delete the line itself
+      case Repo.delete(line) do
+        {:ok, deleted_line} ->
+          # Update line numbers for all subsequent lines
+          from(l in Line,
+            where: l.collection_id == ^collection_id and
+                   l.line_number > ^line.line_number,
+            update: [inc: [line_number: -1]]
+          )
+          |> Repo.update_all([])
+
+          # Clean up any chunks that now have no lines
+          {_deleted_chunks, _} = from(c in Chunk,
+            where: c.collection_id == ^collection_id,
+            where: c.id not in subquery(
+              from(cl in ChunkLine, select: cl.chunk_id)
+            )
+          )
+          |> Repo.delete_all()
+
+          deleted_line
+
+        {:error, changeset} ->
+          Repo.rollback({:delete_failed, changeset})
+      end
+    end)
+    |> case do
+      {:ok, deleted_line} -> {:ok, deleted_line}
+      {:error, {:delete_failed, changeset}} -> {:error, changeset}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Gets the total number of lines in a collection.
+  """
+  def count_lines(collection_id) do
+    Repo.one(from l in Line,
+      where: l.collection_id == ^collection_id,
+      select: count(l.id)
+    )
+  end
+
+  @doc """
+  Validates that we can safely delete a line.
+  Returns :ok if safe to delete, {:error, reason} if not.
+  """
+  def validate_line_deletion(collection_id) do
+    case count_lines(collection_id) do
+      n when n > 1 -> :ok
+      _ -> {:error, "Cannot delete the last line in a collection"}
+    end
+  end
 
   @doc """
   Updates chunk boundaries when lines are deleted.

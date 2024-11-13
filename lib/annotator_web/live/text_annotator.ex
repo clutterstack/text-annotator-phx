@@ -113,60 +113,6 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp handle_note_click(socket, line, row_index_str) do
-    Logger.info("inside handle_note_click")
-    Logger.info("row_index_str: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
-
-    case {socket.assigns.selection, get_chunk_for_line(socket.assigns.chunks, line.id)} do
-      {nil, %Chunk{} = chunk} ->
-        # Clicking an existing chunk - start editing it
-        Logger.info("selection is nil and get_chunk_for_line returned a chunk")
-
-        {:noreply, assign(socket,
-          active_chunk: chunk.id,
-          editing: {row_index_str, "2"},  # Start editing the note cell
-          edit_text: chunk.note,
-          selection: %{
-            start_line: line.id,
-            end_line: line.id,
-            note: chunk.note,
-            chunk_id: chunk.id
-          }
-        )}
-
-      {nil, nil} ->
-        Logger.info("selection is nil and get_chunk_for_line returned nil")
-
-        # Starting a new selection
-        {:noreply, assign(socket,
-          editing: {row_index_str, "2"},  # Start editing the note cell
-          edit_text: "",
-          selection: %{
-            start_line: line.id,
-            end_line: line.id,
-            note: "",
-            chunk_id: nil
-          }
-        )}
-
-      {selection, _} ->
-        Logger.info("selection is something and it's not checking for a chunk")
-
-        # Expanding existing selection
-        {:noreply, assign(socket,
-          selection: %{selection | end_line: line.id}
-        )}
-    end
-  end
-
-  defp ensure_one_line([]), do: [%Line{line_number: 0, content: ""}]
-  defp ensure_one_line(lines), do: lines
-
-  defp get_chunk_for_line(chunks, line_id) do
-    Enum.find(chunks, fn chunk ->
-      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
-    end)
-  end
 
   def handle_event("update_cell", %{"row_index" => row_index, "col_index" => "1", "value" => value}, socket) do
     Logger.info("is_binary(row_index)? #{is_binary(row_index)}")
@@ -177,85 +123,94 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   # Add a new event handler for when note editing is complete:
-def handle_event("update_cell", %{"row_index" => _row_index, "col_index" => "2", "value" => value}, socket) do
-  case socket.assigns.selection do
-    %{chunk_id: chunk_id} when not is_nil(chunk_id) ->
-      # Updating existing chunk
-      case Lines.update_chunk(
-        Repo.get!(Chunk, chunk_id),
-        get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
-        value
-      ) do
-        {:ok, _chunk} ->
-          chunks = Lines.list_chunks(socket.assigns.collection.id)
-          {:noreply, assign(socket,
-            chunks: chunks,
-            editing: nil,
-            selection: nil,
-            active_chunk: nil
-          )}
+  def handle_event("update_cell", %{"row_index" => _row_index, "col_index" => "2", "value" => value}, socket) do
+    case socket.assigns.selection do
+      %{chunk_id: chunk_id} when not is_nil(chunk_id) ->
+        # Updating existing chunk
+        case Lines.update_chunk(
+          Repo.get!(Chunk, chunk_id),
+          get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
+          value
+        ) do
+          {:ok, _chunk} ->
+            chunks = Lines.list_chunks(socket.assigns.collection.id)
+            {:noreply, assign(socket,
+              chunks: chunks,
+              editing: nil,
+              selection: nil,
+              active_chunk: nil
+            )}
 
-        {:error, changeset} ->
-          {:noreply,
-            socket
-            |> put_flash(:error, "Error updating note: #{error_to_string(changeset)}")
-            |> assign(editing: nil)}
-      end
+          {:error, changeset} ->
+            {:noreply,
+              socket
+              |> put_flash(:error, "Error updating note: #{error_to_string(changeset)}")
+              |> assign(editing: nil)}
+        end
 
-    _ ->
-      # Creating new chunk
-      case Lines.create_chunk(
-        socket.assigns.collection.id,
-        get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
-        value
-      ) do
-        {:ok, _chunk} ->
-          chunks = Lines.list_chunks(socket.assigns.collection.id)
-          {:noreply, assign(socket,
-            chunks: chunks,
-            editing: nil,
-            selection: nil,
-            active_chunk: nil
-          )}
+      _ ->
+        # Creating new chunk
+        case Lines.create_chunk(
+          socket.assigns.collection.id,
+          get_selected_line_ids(socket.assigns.selection, socket.assigns.lines),
+          value
+        ) do
+          {:ok, _chunk} ->
+            chunks = Lines.list_chunks(socket.assigns.collection.id)
+            {:noreply, assign(socket,
+              chunks: chunks,
+              editing: nil,
+              selection: nil,
+              active_chunk: nil
+            )}
 
-        {:error, changeset} ->
-          {:noreply,
-            socket
-            |> put_flash(:error, "Error creating note: #{error_to_string(changeset)}")
-            |> assign(editing: nil)}
-      end
-  end
-end
-
-  defp handle_content_update(socket, line, value) do
-    case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
-      {:ok, _} ->
-        # Get fresh data since content updates might split lines
-        collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
-        chunks = Lines.list_chunks(collection.id)
-        {:noreply, assign(socket,
-          collection: collection,
-          lines: collection.lines,
-          chunks: chunks,
-          editing: nil
-        )}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
-         |> assign(editing: nil)}
+          {:error, changeset} ->
+            {:noreply,
+              socket
+              |> put_flash(:error, "Error creating note: #{error_to_string(changeset)}")
+              |> assign(editing: nil)}
+        end
     end
   end
 
-  # Add helper function to get line IDs in selection range:
-  defp get_selected_line_ids(%{start_line: start_id, end_line: end_id}, lines) do
-    lines
-    |> Enum.sort_by(& &1.line_number)
-    |> Enum.filter(fn line ->
-      line.id >= min(start_id, end_id) and line.id <= max(start_id, end_id)
-    end)
-    |> Enum.map(& &1.id)
+  def handle_event("delete_line", %{}, socket) do
+    row_index = String.to_integer(elem(socket.assigns.editing, 0))
+    line = Enum.at(socket.assigns.lines, row_index)
+    collection_id = socket.assigns.collection.id
+
+    # Don't delete if it's the last line
+    case Lines.validate_line_deletion(collection_id) do
+      :ok ->
+        case Lines.delete_line(collection_id, line.id) do
+          {:ok, _deleted_line} ->
+            # Refresh collection data
+            collection = Lines.get_collection_with_lines(collection_id)
+            chunks = Lines.list_chunks(collection_id)
+
+            {:noreply, assign(socket,
+              collection: collection,
+              lines: collection.lines,
+              chunks: chunks,
+              editing: nil,
+              # Clear selection if the deleted line was part of it
+              selection: clear_selection_if_needed(socket.assigns.selection, line.id),
+              # Clear active chunk if it was related to the deleted line
+              active_chunk: clear_active_chunk_if_needed(socket.assigns.active_chunk, chunks, line.id)
+            )}
+
+          {:error, reason} ->
+            {:noreply,
+              socket
+              |> put_flash(:error, "Failed to delete line: #{inspect(reason)}")
+              |> assign(editing: nil)}
+        end
+
+      {:error, reason} ->
+        {:noreply,
+          socket
+          |> put_flash(:error, reason)
+          |> assign(editing: nil)}
+    end
   end
 
   def handle_event("create_collection", %{"name" => name}, socket) do
@@ -315,6 +270,92 @@ end
         {:noreply, put_flash(socket, :error, "Error merging chunks: #{inspect(reason)}")}
     end
   end
+  defp handle_note_click(socket, line, row_index_str) do
+    Logger.info("inside handle_note_click")
+    Logger.info("row_index_str: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
+
+    case {socket.assigns.selection, get_chunk_for_line(socket.assigns.chunks, line.id)} do
+      {nil, %Chunk{} = chunk} ->
+        # Clicking an existing chunk - start editing it
+        Logger.info("selection is nil and get_chunk_for_line returned a chunk")
+
+        {:noreply, assign(socket,
+          active_chunk: chunk.id,
+          editing: {row_index_str, "2"},  # Start editing the note cell
+          edit_text: chunk.note,
+          selection: %{
+            start_line: line.id,
+            end_line: line.id,
+            note: chunk.note,
+            chunk_id: chunk.id
+          }
+        )}
+
+      {nil, nil} ->
+        Logger.info("selection is nil and get_chunk_for_line returned nil")
+
+        # Starting a new selection
+        {:noreply, assign(socket,
+          editing: {row_index_str, "2"},  # Start editing the note cell
+          edit_text: "",
+          selection: %{
+            start_line: line.id,
+            end_line: line.id,
+            note: "",
+            chunk_id: nil
+          }
+        )}
+
+      {selection, _} ->
+        Logger.info("selection is something and it's not checking for a chunk")
+
+        # Expanding existing selection
+        {:noreply, assign(socket,
+          selection: %{selection | end_line: line.id}
+        )}
+    end
+  end
+
+  defp ensure_one_line([]), do: [%Line{line_number: 0, content: ""}]
+  defp ensure_one_line(lines), do: lines
+
+  defp get_chunk_for_line(chunks, line_id) do
+    Enum.find(chunks, fn chunk ->
+      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
+    end)
+  end
+
+  defp handle_content_update(socket, line, value) do
+    case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
+      {:ok, _} ->
+        # Get fresh data since content updates might split lines
+        collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+        chunks = Lines.list_chunks(collection.id)
+        {:noreply, assign(socket,
+          collection: collection,
+          lines: collection.lines,
+          chunks: chunks,
+          editing: nil
+        )}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
+         |> assign(editing: nil)}
+    end
+  end
+
+  # Add helper function to get line IDs in selection range:
+  defp get_selected_line_ids(%{start_line: start_id, end_line: end_id}, lines) do
+    lines
+    |> Enum.sort_by(& &1.line_number)
+    |> Enum.filter(fn line ->
+      line.id >= min(start_id, end_id) and line.id <= max(start_id, end_id)
+    end)
+    |> Enum.map(& &1.id)
+  end
+
 
   defp error_to_string(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
@@ -324,5 +365,27 @@ end
     end)
     |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, "; ")}" end)
     |> Enum.join("\n")
+  end
+  defp clear_selection_if_needed(nil, _line_id), do: nil
+  defp clear_selection_if_needed(selection, line_id) do
+    if line_id in line_id_range(selection) do
+      nil
+    else
+      selection
+    end
+  end
+
+  defp line_id_range(%{start_line: start_id, end_line: end_id}) do
+    Range.new(min(start_id, end_id), max(start_id, end_id))
+  end
+
+  defp clear_active_chunk_if_needed(nil, _chunks, _line_id), do: nil
+  defp clear_active_chunk_if_needed(chunk_id, chunks, line_id) do
+    chunk = Enum.find(chunks, & &1.id == chunk_id)
+    if chunk && Enum.any?(chunk.chunk_lines, & &1.line_id == line_id) do
+      nil
+    else
+      chunk_id
+    end
   end
 end
