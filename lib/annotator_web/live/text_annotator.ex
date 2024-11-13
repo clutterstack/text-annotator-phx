@@ -113,6 +113,13 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
+  def handle_event("cancel_edit", _params, socket) do
+    Logger.info("cancel_edit handler triggered")
+    {:noreply, assign(socket,
+      editing: nil,
+      selection: nil,  # Clear selection when canceling
+      active_chunk: nil)}
+  end
 
   def handle_event("update_cell", %{"row_index" => row_index, "col_index" => "1", "value" => value}, socket) do
     Logger.info("is_binary(row_index)? #{is_binary(row_index)}")
@@ -270,6 +277,8 @@ defmodule AnnotatorWeb.TextAnnotator do
         {:noreply, put_flash(socket, :error, "Error merging chunks: #{inspect(reason)}")}
     end
   end
+
+
   defp handle_note_click(socket, line, row_index_str) do
     Logger.info("inside handle_note_click")
     Logger.info("row_index_str: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
@@ -304,6 +313,18 @@ defmodule AnnotatorWeb.TextAnnotator do
             note: "",
             chunk_id: nil
           }
+        )}
+
+      {%{chunk_id: chunk_id} = selection, _} when not is_nil(chunk_id) ->
+        # We're clicking while having an existing chunk selected
+        # Start editing that chunk again
+        chunk = Enum.find(socket.assigns.chunks, & &1.id == chunk_id)
+
+        {:noreply, assign(socket,
+          active_chunk: chunk_id,
+          editing: {row_index_str, "2"},
+          edit_text: chunk.note,
+          selection: selection
         )}
 
       {selection, _} ->

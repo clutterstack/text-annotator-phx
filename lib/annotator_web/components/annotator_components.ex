@@ -53,16 +53,24 @@ defmodule AnnotatorWeb.AnnotatorComponents do
               ]}
               phx-click={@row_click && @row_click.(row_index, col, col_index)}
             >
-              <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
-                <.editor
-                  row={row}
-                  col={col}
-                  row_index={row_index}
-                  col_index={col_index}
-                  edit_text={@edit_text}
-                />
-              <% else %>
-                <%= render_slot(col, row) %>
+              <%= cond do %>
+                <% @editing == {to_string(row_index), to_string(col_index)} -> %>
+                  <.editor
+                    row={row}
+                    col={col}
+                    row_index={row_index}
+                    col_index={col_index}
+                    edit_text={get_edit_text(@edit_text, col[:name], row, @chunks)}
+                  />
+                <% col[:name] == "note" -> %>
+                  <%= case get_chunk_note(@chunks, row.id) do %>
+                    <% nil -> %>
+                      <div class="text-gray-400">No note</div>
+                    <% note -> %>
+                      <div class="text-gray-900"><%= note %></div>
+                  <% end %>
+                <% true -> %>
+                  <%= render_slot(col, row) %>
               <% end %>
             </div>
           </div>
@@ -71,8 +79,11 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     </div>
     """
   end
-
   attr :row_index, :integer, required: true
+  attr :col_index, :integer, required: true
+  attr :row, :any, required: true
+  attr :col, :map, required: true
+  attr :edit_text, :string, required: true
   def editor(assigns) do
     ~H"""
     <form phx-submit="update_cell">
@@ -86,7 +97,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         data-row-index={@row_index}
         phx-debounce="200"
         autofocus
-      ><%= if @col[:name] == "content", do: @row.content || "", else: @edit_text %></textarea>
+      ><%= @edit_text %></textarea>
     </form>
     """
   end
@@ -95,6 +106,16 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     line_id >= min(start_id, end_id) and line_id <= max(start_id, end_id)
   end
   defp is_selected?(_, _), do: false
+
+  # Get the note for a line from its associated chunk
+  defp get_chunk_note(chunks, line_id) do
+    case Enum.find(chunks, fn chunk ->
+      Enum.any?(chunk.chunk_lines, fn cl -> cl.line_id == line_id end)
+    end) do
+      nil -> nil
+      chunk -> chunk.note
+    end
+  end
 
   defp has_chunk?(chunks, line_id) do
     Enum.any?(chunks, fn chunk ->
@@ -108,6 +129,21 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     end) do
       nil -> nil
       chunk -> chunk.id
+    end
+  end
+
+  defp get_edit_text(edit_text, col_name, row, chunks) do
+    case col_name do
+      "content" ->
+        Logger.info("get_edit_text for content: #{inspect(row.content)}")
+        row.content || ""
+      "note" ->
+        case edit_text do
+          nil -> get_chunk_note(chunks, row.id) || ""
+          "" -> get_chunk_note(chunks, row.id) || ""
+          _ -> edit_text
+        end
+      _ -> ""
     end
   end
 end

@@ -24,6 +24,7 @@ defmodule Annotator.Lines.Chunk do
     chunk
     |> cast(attrs, [:note, :collection_id])
     |> validate_required([:collection_id])
+    |> validate_note_length()
     |> validate_line_ids(attrs)
     |> prepare_chunk_lines(attrs)
     |> validate_lines_exist()
@@ -118,6 +119,16 @@ defmodule Annotator.Lines.Chunk do
     end
   end
 
+  # Validates the length of the note field
+  defp validate_note_length(changeset) do
+    changeset
+    |> validate_length(:note,
+      min: 1,
+      max: 10_000,
+      message: "must be between 1 and 10,000 characters"
+    )
+  end
+
   @doc """
   Returns all chunks in a collection, sorted by the minimum line number in each chunk.
   """
@@ -128,4 +139,6 @@ defmodule Annotator.Lines.Chunk do
       group_by: c.id,
       order_by: min(l.line_number)
   end
+
+
 end

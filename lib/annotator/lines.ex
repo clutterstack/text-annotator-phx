@@ -368,6 +368,9 @@ defmodule Annotator.Lines do
   Updates an existing chunk, replacing its lines with the new set.
   """
   def update_chunk(chunk, line_ids, note) do
+    # Ensure chunk is loaded with its associations
+    chunk = Repo.preload(chunk, :chunk_lines)
+
     chunk
     |> Chunk.changeset(%{
       note: note,
