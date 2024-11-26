@@ -7,6 +7,7 @@ defmodule Annotator.Lines do
   import Ecto.Query, warn: false
   alias Annotator.Repo
   alias Annotator.Lines.{Line, Collection, Chunk, ChunkLine}
+  require Logger
 
   @max_lines_per_transaction 500
 
@@ -105,7 +106,7 @@ defmodule Annotator.Lines do
       existing_line = case Repo.one(
         from l in Line,
         where: l.collection_id == ^collection_id and l.line_number == ^line_number,
-        preload: [chunks: :chunk_lines]  # Preload to ensure we preserve chunk associations
+        preload: [chunks: :chunk_lines]
       ) do
         nil -> %Line{content: ""}
         line -> line
@@ -119,7 +120,12 @@ defmodule Annotator.Lines do
       }
 
       case upsert_line!(collection_id, attrs) do
-        {:ok, _line} -> {:ok, get_collection_with_lines(collection_id)}
+        {:ok, line} ->
+          # If this is the first line, create initial chunk
+          unless line.id in (existing_line.chunks |> Enum.flat_map(& &1.chunk_lines) |> Enum.map(& &1.line_id)) do
+            create_initial_chunk(collection_id, [line])
+          end
+          {:ok, get_collection_with_lines(collection_id)}
         error -> error
       end
     end
@@ -131,51 +137,138 @@ defp handle_content_split!(collection_id, start_line_number, content) do
     content_lines = String.split(content, "\n")
     new_lines_count = length(content_lines)
 
+    Logger.info("\n=== Starting Content Split ===")
+    Logger.info("Start line: #{start_line_number}")
+    Logger.info("Content lines: #{inspect(content_lines)}")
+
     Repo.transaction(fn ->
-      # Get existing line and its chunks with a single query
+      # Get the original line and its chunks
       {original_line, affected_chunks} = get_line_and_chunks(collection_id, start_line_number)
 
-      # Validate the operation
-      validate_split_operation!(collection_id, start_line_number, new_lines_count)
+      Logger.info("\nOriginal line to edit:")
+      Logger.info("ID: #{original_line && original_line.id}")
+      Logger.info("Number: #{original_line && original_line.line_number}")
+      Logger.info("Content: #{original_line && original_line.content}")
 
-      # Perform the split operation
-      with {:ok, lines} <- insert_split_lines(collection_id, start_line_number, content_lines),
-           :ok <- update_chunk_associations(lines, original_line, affected_chunks),
-           :ok <- cleanup_empty_chunks(collection_id) do
-        {:ok, get_collection_with_lines(collection_id)}
-      else
-        {:error, reason} -> Repo.rollback(reason)
+      # Get all lines that will be affected (the line we're editing and any subsequent lines)
+      lines_to_update = Repo.all(
+        from l in Line,
+        where: l.collection_id == ^collection_id and l.line_number >= ^start_line_number,
+        order_by: l.line_number
+      )
+
+      # Delete all affected lines
+      line_ids = Enum.map(lines_to_update, & &1.id)
+      Repo.delete_all(from l in Line, where: l.id in ^line_ids)
+
+      Logger.info("\nDeleted lines with IDs: #{inspect(line_ids)}")
+
+      # Insert all lines (original content plus new content)
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      # Prepare all new lines
+      new_lines_params = content_lines
+      |> Enum.with_index(start_line_number)
+      |> Enum.map(fn {content, idx} ->
+        %{
+          collection_id: collection_id,
+          line_number: idx,
+          content: content,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+      {inserted_count, new_lines} = Repo.insert_all(Line, new_lines_params, returning: true)
+
+      Logger.info("\nInserted #{inserted_count} new lines:")
+      for line <- new_lines do
+        Logger.info("Line #{line.line_number}: '#{line.content}' (ID: #{line.id})")
       end
+
+      # Handle chunk associations
+      if Enum.empty?(affected_chunks) do
+        # If no existing chunks, create a new one for all lines
+        Logger.info("\nCreating new chunk for all lines")
+        create_initial_chunk(collection_id, new_lines)
+      else
+        # Add all new lines to existing chunks
+        chunk_lines = for chunk <- affected_chunks,
+                         line <- new_lines do
+          %{
+            chunk_id: chunk.id,
+            line_id: line.id,
+            inserted_at: now,
+            updated_at: now
+          }
+        end
+
+        {chunk_assoc_count, _} = Repo.insert_all(ChunkLine, chunk_lines)
+        Logger.info("\nAdded #{chunk_assoc_count} chunk associations")
+      end
+
+      {:ok, get_collection_with_lines(collection_id)}
     end)
   end
 
-  # Update chunk associations for the split lines
-  defp update_chunk_associations(new_lines, nil, _), do: :ok
-  defp update_chunk_associations(new_lines, _original_line, []), do: :ok
-  defp update_chunk_associations(new_lines, original_line, affected_chunks) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+  defp create_initial_chunk(collection_id, lines) do
+    Logger.info("Creating initial chunk for lines: #{inspect(Enum.map(lines, & &1.line_number))}")
 
-    # Delete old associations
-    {_, _} = Repo.delete_all(
-      from cl in ChunkLine,
-      where: cl.line_id == ^original_line.id and cl.chunk_id in ^Enum.map(affected_chunks, & &1.id)
+    %Chunk{}
+    |> Chunk.changeset(%{
+      collection_id: collection_id,
+      note: "",
+      line_ids: Enum.map(lines, & &1.id)
+    })
+    |> Repo.insert()
+  end
+
+
+  # Shift line numbers safely
+  defp shift_existing_lines(collection_id, start_line_number, offset) do
+    # Get all lines that need to be shifted
+    lines_to_shift = Repo.all(
+      from l in Line,
+      where: l.collection_id == ^collection_id and l.line_number >= ^start_line_number,
+      order_by: [desc: l.line_number]  # Important: update highest numbers first
     )
 
-    # Create new associations
-    chunk_lines = for chunk <- affected_chunks,
-                     line <- new_lines,
-                     do: %{
-                       chunk_id: chunk.id,
-                       line_id: line.id,
-                       inserted_at: now,
-                       updated_at: now
-                     }
-
-    case Repo.insert_all(ChunkLine, chunk_lines, on_conflict: :nothing) do
-      {_, _} -> :ok
-      error -> {:error, "Failed to update chunk associations: #{inspect(error)}"}
+    # Update each line's number individually to avoid conflicts
+    for line <- lines_to_shift do
+      Repo.update_all(
+        from(l in Line,
+          where: l.id == ^line.id
+        ),
+        set: [
+          line_number: line.line_number + offset,
+          updated_at: DateTime.utc_now()
+        ]
+      )
     end
   end
+
+  # Update chunk associations for the split lines
+# Update chunk associations for the split lines
+defp update_chunk_associations(new_lines, nil, _), do: :ok
+defp update_chunk_associations(new_lines, _original_line, []), do: :ok
+defp update_chunk_associations(new_lines, original_line, affected_chunks) do
+  now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+  # Create new associations
+  chunk_lines = for chunk <- affected_chunks,
+                   line <- new_lines,
+                   do: %{
+                     chunk_id: chunk.id,
+                     line_id: line.id,
+                     inserted_at: now,
+                     updated_at: now
+                   }
+
+  case Repo.insert_all(ChunkLine, chunk_lines) do
+    {_, _} -> :ok
+    error -> {:error, "Failed to update chunk associations: #{inspect(error)}"}
+  end
+end
 
   # Remove any chunks that ended up empty after the split
   defp cleanup_empty_chunks(collection_id) do
@@ -254,21 +347,9 @@ defp handle_content_split!(collection_id, start_line_number, content) do
   end
 
   # Insert the new lines from the split content
-defp insert_split_lines(collection_id, start_line_number, content_lines) do
+  defp insert_split_lines(collection_id, start_line_number, content_lines) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
-    expected_count = length(content_lines)
 
-    # First, shift existing lines to make room
-    {shifted_count, _} = from(l in Line,
-      where: l.collection_id == ^collection_id and
-             l.line_number > ^start_line_number
-    )
-    |> Repo.update_all(
-      inc: [line_number: expected_count - 1],
-      set: [updated_at: now]
-    )
-
-    # Now insert the new lines
     new_lines = content_lines
     |> Enum.with_index(start_line_number)
     |> Enum.map(fn {content, idx} ->
@@ -281,15 +362,12 @@ defp insert_split_lines(collection_id, start_line_number, content_lines) do
       }
     end)
 
-    case Repo.insert_all(Line, new_lines,
-      on_conflict: {:replace, [:content, :updated_at]},
-      conflict_target: [:collection_id, :line_number],
-      returning: true
-    ) do
-      {count, lines} when count == expected_count and length(lines) == expected_count ->
+    # Use insert_all without on_conflict since we've already deleted the original line
+    case Repo.insert_all(Line, new_lines, returning: true) do
+      {count, lines} when count == length(content_lines) ->
         {:ok, lines}
       {count, _} ->
-        {:error, "Expected to insert #{expected_count} lines, but inserted #{count}"}
+        {:error, "Expected to insert #{length(content_lines)} lines, but inserted #{count}"}
     end
   end
 

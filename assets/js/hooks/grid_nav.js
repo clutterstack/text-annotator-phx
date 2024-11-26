@@ -2,6 +2,7 @@ export const GridNav = {
   mounted() {
     this.currentRow = 0;
     this.currentCol = 0;
+    this.selectionStart = null;
 
     this.getCellAt = (row, col) => {
       const rows = Array.from(this.el.querySelectorAll('[role="row"]:not(.header)'));
@@ -19,27 +20,50 @@ export const GridNav = {
       }
     }
 
-      // Push focus event to server -- not sure we care about this
-    //   this.pushEvent("cell_focused", {
-    //     row: this.currentRow,
-    //     col: this.currentCol
-    //   });
-    // }
-
     this.handleKeyDown = (e) => {
-      //The escape key needs to work even if editing
-      if (e.key == 'Escape') {
-        this.pushEvent("cancel_edit");
+      if (e.key === 'Escape') {
+        if (this.selectionStart !== null) {
+          // Clear selection
+          this.selectionStart = null;
+          this.pushEvent("clear_selection", {});
+        } else {
+          // Cancel editing
+          this.pushEvent("cancel_edit");
+        }
         return;
       }
 
-      // if ((e.ctrlKey || e.metaKey) && e.key == 'Enter') {
-      //   this.pushEvent("update_cell", {
-      //     row: this.currentRow,
-      //     col: this.currentCol
-      //   });
-      //   return;
-      // }
+      // Handle line number selection with Shift
+      if (e.shiftKey && this.getCellAt(this.currentRow, 0)?.dataset.selectable === 'true') {
+        const currentLineNums = this.getCurrentLineRange();
+        if (currentLineNums) {
+          if (this.selectionStart === null) {
+            // Start new selection
+            this.selectionStart = currentLineNums;
+            this.pushEvent("start_selection", { 
+              start: currentLineNums.first,
+              end: currentLineNums.last
+            });
+          } else {
+            // Update existing selection
+            this.pushEvent("update_selection", {
+              start: this.selectionStart.first,
+              end: currentLineNums.last
+            });
+          }
+        }
+        return;
+      }
+
+      // Handle Enter for editing
+      if (e.key === 'Enter' && !this.isEditing()) {
+        e.preventDefault();
+        this.pushEvent("start_edit", {
+          row: this.currentRow,
+          col: this.currentCol
+        });
+        return;
+      }
 
       // Don't handle navigation when editing
       if (this.isEditing()) return;
@@ -47,7 +71,7 @@ export const GridNav = {
       // Only handle arrow keys
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       
-      // e.preventDefault();
+      e.preventDefault();
       
       const rows = Array.from(this.el.querySelectorAll('[role="row"]:not(.header)'));
       const maxRow = rows.length - 1;
@@ -72,6 +96,16 @@ export const GridNav = {
           break;
       }
     };
+
+    this.getCurrentLineRange = () => {
+      const cell = this.getCellAt(this.currentRow, 0);
+      if (!cell) return null;
+
+      return {
+        first: parseInt(cell.dataset.firstLine),
+        last: parseInt(cell.dataset.lastLine)
+      };
+    };
     
     this.el.addEventListener('keydown', this.handleKeyDown);
   },
@@ -79,4 +113,4 @@ export const GridNav = {
   destroyed() {
     this.el.removeEventListener('keydown', this.handleKeyDown);
   }
-}
+};

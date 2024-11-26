@@ -24,7 +24,8 @@ defmodule AnnotatorWeb.TextAnnotator do
           lines: lines,
           chunks: chunks,
           focused_cell: {0, 1},
-          editing: nil,
+          editing: {"0", "1"}, # Start in edit mode for content
+          edit_text: "",
           selection: nil,
           active_chunk: nil
         )}
@@ -32,7 +33,6 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def mount(_params, _session, socket) do
-    # New collection - no chunks yet
     {:ok, assign(socket,
       collection: nil,
       lines: [%Line{line_number: 0, content: ""}],
@@ -220,10 +220,21 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  def handle_event("create_collection", %{"name" => name}, socket) do
+  def handle_event("start_selection", %{"start" => start, "end" => end_line}, socket) do
+    {:noreply, assign(socket, selection: %{start_line: start, end_line: end_line})}
+  end
+
+  def handle_event("update_selection", %{"start" => start, "end" => end_line}, socket) do
+    {:noreply, assign(socket, selection: %{start_line: start, end_line: end_line})}
+  end
+
+  def handle_event("clear_selection", _params, socket) do
+    {:noreply, assign(socket, selection: nil)}
+  end
+
+def handle_event("create_collection", %{"name" => name}, socket) do
     case Lines.create_collection(%{name: name}) do
       {:ok, collection} ->
-        # Save initial empty line
         {:ok, line} = Lines.add_line(collection.id, %{
           line_number: 0,
           content: "",
@@ -238,7 +249,8 @@ defmodule AnnotatorWeb.TextAnnotator do
             collection: collection,
             lines: lines,
             chunks: chunks,
-            editing: nil,
+            editing: {"0", "1"}, # Start in edit mode for content
+            edit_text: "",
             selection: nil,
             active_chunk: nil
           )
