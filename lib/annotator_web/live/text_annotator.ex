@@ -220,6 +220,22 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
+  def handle_event("handle_selection", %{"key" => key}, socket) do
+    case key do
+      " " -> # Space key
+        {:noreply, start_new_selection(socket)}
+
+      "n" when not is_nil(socket.assigns.selection) ->
+        {:noreply, start_note_editing(socket)}
+
+      "Escape" ->
+        {:noreply, clear_selection(socket)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("start_selection", %{"start" => start, "end" => end_line}, socket) do
     {:noreply, assign(socket, selection: %{start_line: start, end_line: end_line})}
   end
@@ -290,6 +306,48 @@ def handle_event("create_collection", %{"name" => name}, socket) do
     end
   end
 
+  defp start_new_selection(socket) do
+    # Get the currently focused line number from the active element
+    case get_focused_line_number(socket) do
+      nil -> socket
+      line_number ->
+        assign(socket,
+          selection: %{
+            start_line: line_number,
+            end_line: line_number
+          })
+    end
+  end
+
+  defp start_note_editing(socket) do
+    case socket.assigns.selection do
+      nil -> socket
+      selection ->
+        first_line = Enum.find(socket.assigns.lines, & &1.line_number == selection.start_line)
+        row_index = Enum.find_index(socket.assigns.lines, & &1.id == first_line.id)
+
+        assign(socket,
+          editing: {to_string(row_index), "2"},  # Start editing the note column
+          edit_text: ""
+        )
+    end
+  end
+
+  defp clear_selection(socket) do
+    assign(socket,
+      selection: nil,
+      active_chunk: nil
+    )
+  end
+
+  defp get_focused_line_number(socket) do
+    case socket.assigns.focused_cell do
+      {row_index, 0} -> # First column (line numbers)
+        line = Enum.at(socket.assigns.lines, row_index)
+        line && line.line_number
+      _ -> nil
+    end
+  end
 
   defp handle_note_click(socket, line, row_index_str) do
     Logger.info("inside handle_note_click")
@@ -348,6 +406,8 @@ def handle_event("create_collection", %{"name" => name}, socket) do
         )}
     end
   end
+
+
 
   defp ensure_one_line([]), do: [%Line{line_number: 0, content: ""}]
   defp ensure_one_line(lines), do: lines

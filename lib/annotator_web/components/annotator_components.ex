@@ -23,24 +23,21 @@ defmodule AnnotatorWeb.AnnotatorComponents do
 
   def anno_grid(assigns) do
     chunk_groups = group_lines_by_chunks(assigns.rows, assigns.chunks)
-
-    Logger.info("Grouped #{length(assigns.rows)} lines into #{length(chunk_groups)} groups")
-    for {chunk, lines} <- chunk_groups do
-      if chunk do
-        Logger.info("Chunk #{chunk.id} contains lines #{inspect(Enum.map(lines, & &1.line_number))}")
-      else
-        Logger.info("Ungrouped lines: #{inspect(Enum.map(lines, & &1.line_number))}")
-      end
-    end
-
     assigns = assign(assigns, :chunk_groups, chunk_groups)
 
     ~H"""
-    <div class="w-full" role="grid" tabindex="0" id={@id} phx-hook="GridNav">
+    <div class="w-full"
+         role="grid"
+         tabindex="0"
+         id={@id}
+         phx-hook="GridNav"
+         aria-multiselectable="true">
       <div class="border rounded-lg overflow-hidden bg-white">
         <div role="rowgroup">
           <div role="row" class="grid grid-cols-[80px_1fr_1fr] border-b bg-zinc-50">
-            <div :for={col <- @col} role="columnheader" class="p-3 text-sm font-medium text-zinc-500">
+            <div :for={col <- @col}
+                 role="columnheader"
+                 class="p-3 text-sm font-medium text-zinc-500">
               <%= col[:label] %>
             </div>
           </div>
@@ -50,21 +47,25 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           <%= for {group, group_idx} <- Enum.with_index(@chunk_groups) do %>
             <% {chunk, lines} = group %>
             <div role="row"
-              class={[
-                "grid grid-cols-[80px_1fr_1fr]",
-                "group hover:bg-zinc-50",
-                group_idx != length(@chunk_groups) - 1 && "border-b"
-              ]}>
+                 class={[
+                   "grid grid-cols-[80px_1fr_1fr]",
+                   "group hover:bg-zinc-50",
+                   group_idx != length(@chunk_groups) - 1 && "border-b",
+                   # Add selected state styling
+                   is_selected?(lines, @selection) && "bg-blue-50"
+                 ]}
+                 aria-selected={is_selected?(lines, @selection)}>
               <div
                 :for={{col, col_index} <- Enum.with_index(@col)}
                 role="gridcell"
-                tabindex="-1"
+                tabindex={if(col_index == 0, do: "0", else: "-1")}
                 data-col={col[:name]}
                 data-first-line={if(lines != [], do: List.first(lines).line_number)}
                 data-last-line={if(lines != [], do: List.last(lines).line_number)}
                 data-chunk-id={if(chunk, do: chunk.id)}
                 data-selectable={col[:name] == "line-num"}
                 data-deletable={col[:deletable]}
+                aria-label={get_aria_label(col, lines, chunk)}
                 class={[
                   "p-3 min-h-[3rem]",
                   col_index != length(@col) - 1 && "border-r",
@@ -72,43 +73,46 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                   col[:editable] && "hover:cursor-pointer hover:bg-zinc-100/50"
                 ]}
                 phx-click={@row_click && @row_click.(group_idx, col, col_index)}
+                phx-keydown={if(col[:name] == "line-num", do: "handle_selection")}
               >
-                <%= cond do %>
-                  <% @editing == {to_string(group_idx), to_string(col_index)} -> %>
-                    <.editor
-                      group={group}
-                      col={col}
-                      row_index={group_idx}
-                      col_index={col_index}
-                      edit_text={get_edit_text(@edit_text, col[:name], group, lines)}
-                    />
-                  <% true -> %>
-                    <%= case col[:name] do %>
-                      <% "line-num" -> %>
-                        <%= if lines == [] do %>
-                          0
-                        <% else %>
-                          <%= if length(lines) == 1 do %>
-                            <%= List.first(lines).line_number %>
-                          <% else %>
-                            <%= "#{List.first(lines).line_number}-#{List.last(lines).line_number}" %>
-                          <% end %>
-                        <% end %>
-                      <% "content" -> %>
-                        <pre class="whitespace-pre-wrap"><code><%= Enum.map_join(lines, "\n", & &1.content) %></code></pre>
-                      <% "note" -> %>
-                        <div class={if(chunk, do: "text-gray-900", else: "text-gray-400")}>
-                          <%= chunk && chunk.note || "No note" %>
-                        </div>
-                    <% end %>
-                <% end %>
+                <%= render_cell_content(assigns, col, chunk, lines, group_idx, col_index) %>
               </div>
             </div>
           <% end %>
         </div>
       </div>
+
+      <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard shortcuts">
+        <p>Press <kbd>Space</kbd> to start selection</p>
+        <p>Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Shift + ↑/↓</kbd> to select multiple lines</p>
+        <p>Press <kbd>n</kbd> to add a note to selected lines</p>
+        <p>Press <kbd>Esc</kbd> to cancel selection</p>
+      </div>
     </div>
     """
+  end
+
+  defp is_selected?(lines, selection) when not is_nil(selection) do
+    first_line = List.first(lines)
+    last_line = List.last(lines)
+
+    first_line && last_line &&
+      first_line.line_number >= min(selection.start_line, selection.end_line) &&
+      last_line.line_number <= max(selection.start_line, selection.end_line)
+  end
+  defp is_selected?(_, _), do: false
+
+  defp get_aria_label(col, lines, chunk) do
+    case col[:name] do
+      "line-num" ->
+        if length(lines) == 1 do
+          "Line #{List.first(lines).line_number}"
+        else
+          "Lines #{List.first(lines).line_number} through #{List.last(lines).line_number}"
+        end
+      "content" -> "Content: #{Enum.map_join(lines, " ", & &1.content)}"
+      "note" -> "Note: #{chunk && chunk.note || "No note"}"
+    end
   end
 
   # Group lines into chunks, including uncategorized lines in their own group
