@@ -1,37 +1,60 @@
 export const GridNav = {
   mounted() {
-    this.currentRow = 0;
-    this.currentCol = 0;
-    this.selectionStart = null;
 
-    this.getCellAt = (row, col) => {
-      const rows = Array.from(this.el.querySelectorAll('[role="row"]:not(.header)'));
-      return rows[row]?.querySelector(`[role="gridcell"]:nth-child(${col + 1})`);
-    };
+    this.selectionStart = null;
 
     this.isEditing = () => {
       return this.el.querySelector('textarea') !== null;
     };
 
+    this.getCellAt = (rowIndex, colIndex) => {
+      const element = document.querySelector(`[data-col-index="${colIndex}"][data-row-index="${rowIndex}"]`);
+      if (element) {
+          return element;
+      } else {
+          console.warn(`Element with data-col-index=${colIndex} and data-row-index=${rowIndex} not found.`);
+      }
+      return;
+    };
+
     this.focusCell = () =>  {
       const targetCell = this.getCellAt(this.currentRow, this.currentCol);
-      if (targetCell) {
         targetCell.focus();
+    }
+
+    this.extendSelection = (direction) => {
+      const rows = this.el.querySelectorAll('[role="row"]');
+      const currentRow = document.activeElement.closest('[role="row"]');
+      const currentIndex = Array.from(rows).indexOf(currentRow);
+      
+      const targetIndex = currentIndex + direction;
+      if (targetIndex >= 0 && targetIndex < rows.length) {
+        this.pushEvent("extend_selection", {
+          line_number: rows[targetIndex].querySelector('[data-col="line-num"]').dataset.firstLine
+        });
       }
     }
 
     this.handleKeyDown = (e) => {
+
+      // Escape should work during editing -- to cancel edit
       if (e.key === 'Escape') {
         if (this.selectionStart !== null) {
-          // Clear selection
           this.selectionStart = null;
           this.pushEvent("clear_selection", {});
         } else {
-          // Cancel editing
           this.pushEvent("cancel_edit");
         }
         return;
       }
+
+      // Don't handle navigation when editing
+      if (this.isEditing()) return;
+
+      this.currentRow = document.activeElement.dataset.rowIndex;
+      this.currentCol = document.activeElement.dataset.colIndex;
+      // console.log("got currentRow" + this.currentRow)
+      // console.log("got currentCol" + this.currentCol)
 
       // Handle line number selection with Shift
       if (e.shiftKey && this.getCellAt(this.currentRow, 0)?.dataset.selectable === 'true') {
@@ -55,43 +78,54 @@ export const GridNav = {
         return;
       }
 
-      // Handle Enter for editing
+      // Handle Enter to start editing, or to enter the grid nav if the parent
+      // tabbable element is selected
       if (e.key === 'Enter' && !this.isEditing()) {
-        e.preventDefault();
-        this.pushEvent("start_edit", {
-          row: this.currentRow,
-          col: this.currentCol
-        });
+        if (document.activeElement.classList.contains("editable")) {
+          e.preventDefault();
+          this.pushEvent("start_edit", {
+            row_index: this.currentRow,
+            col_index: this.currentCol
+          });
+        }
+        else if (document.activeElement.id == "annotated-content") {
+          e.preventDefault();
+          this.currentRow = 0;
+          this.currentCol = 0;
+          this.focusCell();
+        }
         return;
       }
 
-      // Don't handle navigation when editing
-      if (this.isEditing()) return;
-
       // Only handle arrow keys
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      // if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       
       e.preventDefault();
       
-      const rows = Array.from(this.el.querySelectorAll('[role="row"]:not(.header)'));
-      const maxRow = rows.length - 1;
+      const rows = Array.from(this.el.querySelectorAll('[role="row"]'));
+      const maxRow = rows.length - 2; // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
       const maxCol = this.el.querySelectorAll('[role="columnheader"]').length - 1;
+      // console.log("maxRow: "+ maxRow + "; maxCol: " + maxCol);
       
       switch (e.key) {
         case 'ArrowUp':
           this.currentRow = Math.max(0, this.currentRow - 1);
+          console.log("ArrowUp to " + this.currentRow + ", " + this.currentCol);
           this.focusCell();
           break;
         case 'ArrowDown':
           this.currentRow = Math.min(maxRow, this.currentRow + 1);
+          console.log("ArrowDown to " + this.currentRow + ", " + this.currentCol);
           this.focusCell();
           break;
         case 'ArrowLeft':
           this.currentCol = Math.max(0, this.currentCol - 1);
+          console.log("ArrowLeft to " + this.currentRow + ", " + this.currentCol);
           this.focusCell();
           break;
         case 'ArrowRight':
           this.currentCol = Math.min(maxCol, this.currentCol + 1);
+          console.log("ArrowRight to " + this.currentRow + ", " + this.currentCol);
           this.focusCell();
           break;
       }

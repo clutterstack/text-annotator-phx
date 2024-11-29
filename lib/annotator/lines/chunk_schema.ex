@@ -6,7 +6,7 @@ defmodule Annotator.Lines.Chunk do
   alias Annotator.Lines.{Line, ChunkLine}
 
   schema "chunks" do
-    field :note, :string
+    field :note, :string, default: ""
     belongs_to :collection, Annotator.Lines.Collection
     has_many :chunk_lines, ChunkLine, on_replace: :delete
     has_many :lines, through: [:chunk_lines, :line]
@@ -25,6 +25,7 @@ defmodule Annotator.Lines.Chunk do
     |> cast(attrs, [:note, :collection_id])
     |> validate_required([:collection_id])
     |> validate_note_length()
+    |> put_line_associations(attrs)
     |> validate_line_ids(attrs)
     |> prepare_chunk_lines(attrs)
     |> validate_lines_exist()
@@ -128,6 +129,14 @@ defmodule Annotator.Lines.Chunk do
       message: "must be between 1 and 10,000 characters"
     )
   end
+
+  defp put_line_associations(changeset, %{line_ids: line_ids}) when is_list(line_ids) do
+    put_assoc(changeset, :chunk_lines, Enum.map(line_ids, &%{line_id: &1}))
+  end
+  defp put_line_associations(changeset, %{"line_ids" => line_ids}) when is_list(line_ids) do
+    put_assoc(changeset, :chunk_lines, Enum.map(line_ids, &%{line_id: &1}))
+  end
+  defp put_line_associations(changeset, _), do: changeset
 
   @doc """
   Returns all chunks in a collection, sorted by the minimum line number in each chunk.

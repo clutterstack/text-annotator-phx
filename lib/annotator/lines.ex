@@ -30,9 +30,15 @@ defmodule Annotator.Lines do
 
   # Add a new line to a collection
   def add_line(collection_id, attrs) do
-    %Line{collection_id: collection_id}
-    |> Line.changeset(attrs)
-    |> Repo.insert()
+    Repo.transaction fn ->
+      {:ok, line} = %Line{collection_id: collection_id}
+        |> Line.changeset(attrs)
+        |> Repo.insert()
+
+      {:ok, chunk} = create_chunk(collection_id, [line.id], "")
+
+      line
+    end
   end
 
   # Bulk insert lines -- superseded?
@@ -135,7 +141,7 @@ defmodule Annotator.Lines do
   # All operations are wrapped in a transaction for consistency.
 defp handle_content_split!(collection_id, start_line_number, content) do
     content_lines = String.split(content, "\n")
-    new_lines_count = length(content_lines)
+    # new_lines_count = length(content_lines)
 
     Logger.info("\n=== Starting Content Split ===")
     Logger.info("Start line: #{start_line_number}")
@@ -225,62 +231,61 @@ defp handle_content_split!(collection_id, start_line_number, content) do
 
 
   # Shift line numbers safely
-  defp shift_existing_lines(collection_id, start_line_number, offset) do
-    # Get all lines that need to be shifted
-    lines_to_shift = Repo.all(
-      from l in Line,
-      where: l.collection_id == ^collection_id and l.line_number >= ^start_line_number,
-      order_by: [desc: l.line_number]  # Important: update highest numbers first
-    )
+  # defp shift_existing_lines(collection_id, start_line_number, offset) do
+  #   # Get all lines that need to be shifted
+  #   lines_to_shift = Repo.all(
+  #     from l in Line,
+  #     where: l.collection_id == ^collection_id and l.line_number >= ^start_line_number,
+  #     order_by: [desc: l.line_number]  # Important: update highest numbers first
+  #   )
 
-    # Update each line's number individually to avoid conflicts
-    for line <- lines_to_shift do
-      Repo.update_all(
-        from(l in Line,
-          where: l.id == ^line.id
-        ),
-        set: [
-          line_number: line.line_number + offset,
-          updated_at: DateTime.utc_now()
-        ]
-      )
-    end
-  end
+  #   # Update each line's number individually to avoid conflicts
+  #   for line <- lines_to_shift do
+  #     Repo.update_all(
+  #       from(l in Line,
+  #         where: l.id == ^line.id
+  #       ),
+  #       set: [
+  #         line_number: line.line_number + offset,
+  #         updated_at: DateTime.utc_now()
+  #       ]
+  #     )
+  #   end
+  # end
 
-  # Update chunk associations for the split lines
 # Update chunk associations for the split lines
-defp update_chunk_associations(new_lines, nil, _), do: :ok
-defp update_chunk_associations(new_lines, _original_line, []), do: :ok
-defp update_chunk_associations(new_lines, original_line, affected_chunks) do
-  now = DateTime.utc_now() |> DateTime.truncate(:second)
+# defp update_chunk_associations(new_lines, nil, _), do: :ok
+# defp update_chunk_associations(new_lines, _original_line, []), do: :ok
+# defp update_chunk_associations(new_lines, original_line, affected_chunks) do
+#   now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-  # Create new associations
-  chunk_lines = for chunk <- affected_chunks,
-                   line <- new_lines,
-                   do: %{
-                     chunk_id: chunk.id,
-                     line_id: line.id,
-                     inserted_at: now,
-                     updated_at: now
-                   }
+#   # Create new associations
+#   chunk_lines = for chunk <- affected_chunks,
+#                    line <- new_lines,
+#                    do: %{
+#                      chunk_id: chunk.id,
+#                      line_id: line.id,
+#                      inserted_at: now,
+#                      updated_at: now
+#                    }
 
-  case Repo.insert_all(ChunkLine, chunk_lines) do
-    {_, _} -> :ok
-    error -> {:error, "Failed to update chunk associations: #{inspect(error)}"}
-  end
-end
+#   case Repo.insert_all(ChunkLine, chunk_lines) do
+#     {_, _} -> :ok
+#     error -> {:error, "Failed to update chunk associations: #{inspect(error)}"}
+#   end
+# end
 
   # Remove any chunks that ended up empty after the split
-  defp cleanup_empty_chunks(collection_id) do
-    {_, _} = Repo.delete_all(
-      from c in Chunk,
-      where: c.collection_id == ^collection_id,
-      where: c.id not in subquery(
-        from(cl in ChunkLine, select: cl.chunk_id)
-      )
-    )
-    :ok
-  end
+  # defp cleanup_empty_chunks(collection_id) do
+  #   {_, _} = Repo.delete_all(
+  #     from c in Chunk,
+  #     where: c.collection_id == ^collection_id,
+  #     where: c.id not in subquery(
+  #       from(cl in ChunkLine, select: cl.chunk_id)
+  #     )
+  #   )
+  #   :ok
+  # end
 
 @doc """
   Gets a summary of chunks and their line coverage for a collection.
@@ -326,50 +331,50 @@ end
   {line_with_chunks, line_with_chunks && line_with_chunks.chunks || []}
   end
 
-  defp validate_split_operation!(collection_id, start_line_number, new_lines_count) do
-    # Check for transaction size limit
-    if new_lines_count > @max_lines_per_transaction do
-      raise "Split would create #{new_lines_count} lines, exceeding limit of #{@max_lines_per_transaction}"
-    end
+  # defp validate_split_operation!(collection_id, start_line_number, new_lines_count) do
+  #   # Check for transaction size limit
+  #   if new_lines_count > @max_lines_per_transaction do
+  #     raise "Split would create #{new_lines_count} lines, exceeding limit of #{@max_lines_per_transaction}"
+  #   end
 
-    # Count how many lines would be affected by this operation
-    affected_lines = Repo.one(
-      from l in Line,
-      where: l.collection_id == ^collection_id and
-             l.line_number >= ^start_line_number,
-      select: count(l.id)
-    )
+  #   # Count how many lines would be affected by this operation
+  #   affected_lines = Repo.one(
+  #     from l in Line,
+  #     where: l.collection_id == ^collection_id and
+  #            l.line_number >= ^start_line_number,
+  #     select: count(l.id)
+  #   )
 
-    # If total affected lines (existing + new - 1 for the original line) would exceed limit, reject
-    if affected_lines + new_lines_count - 1 > @max_lines_per_transaction do
-      raise "Operation would affect #{affected_lines + new_lines_count - 1} lines, exceeding limit of #{@max_lines_per_transaction}"
-    end
-  end
+  #   # If total affected lines (existing + new - 1 for the original line) would exceed limit, reject
+  #   if affected_lines + new_lines_count - 1 > @max_lines_per_transaction do
+  #     raise "Operation would affect #{affected_lines + new_lines_count - 1} lines, exceeding limit of #{@max_lines_per_transaction}"
+  #   end
+  # end
 
   # Insert the new lines from the split content
-  defp insert_split_lines(collection_id, start_line_number, content_lines) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+  # defp insert_split_lines(collection_id, start_line_number, content_lines) do
+  #   now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    new_lines = content_lines
-    |> Enum.with_index(start_line_number)
-    |> Enum.map(fn {content, idx} ->
-      %{
-        collection_id: collection_id,
-        line_number: idx,
-        content: content,
-        inserted_at: now,
-        updated_at: now
-      }
-    end)
+  #   new_lines = content_lines
+  #   |> Enum.with_index(start_line_number)
+  #   |> Enum.map(fn {content, idx} ->
+  #     %{
+  #       collection_id: collection_id,
+  #       line_number: idx,
+  #       content: content,
+  #       inserted_at: now,
+  #       updated_at: now
+  #     }
+  #   end)
 
-    # Use insert_all without on_conflict since we've already deleted the original line
-    case Repo.insert_all(Line, new_lines, returning: true) do
-      {count, lines} when count == length(content_lines) ->
-        {:ok, lines}
-      {count, _} ->
-        {:error, "Expected to insert #{length(content_lines)} lines, but inserted #{count}"}
-    end
-  end
+  #   # Use insert_all without on_conflict since we've already deleted the original line
+  #   case Repo.insert_all(Line, new_lines, returning: true) do
+  #     {count, lines} when count == length(content_lines) ->
+  #       {:ok, lines}
+  #     {count, _} ->
+  #       {:error, "Expected to insert #{length(content_lines)} lines, but inserted #{count}"}
+  #   end
+  # end
 
   @doc """
   Deletes a line and renumbers subsequent lines in a single transaction.
