@@ -183,10 +183,29 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     attr :col, :any, required: true
     attr :chunk, :any
     attr :lines, :list
+    attr :selection, :any, default: nil
     def cell_content(assigns) do
       ~H"""
       <%= case @col[:name] do %>
         <% "line-num" -> %>
+          <div class="flex flex-col">
+            <%= for line <- @lines do %>
+              <div class="py-1 px-2 hover:bg-zinc-100 rounded cursor-pointer"
+                  role="button"
+                  tabindex="0"
+                  data-line-number={line.line_number}
+                  data-selectable="true"
+                  phx-click="toggle_line_selection"
+                  phx-value-line={line.line_number}
+                  aria-selected={is_line_selected?(line, @selection)}
+                  class={[
+                    is_line_selected?(line, @selection) && "bg-blue-100 hover:bg-blue-200"
+                  ]}>
+                <%= line.line_number %>
+              </div>
+            <% end %>
+          </div>
+        <% "line-span" -> %>
           <%= if @lines == [] do %>
             <%= "0" %>
           <% else %>
@@ -215,6 +234,12 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       <% end %>
       """
     end
+
+    defp is_line_selected?(line, selection) when not is_nil(selection) do
+      line.line_number >= min(selection.start_line, selection.end_line) &&
+      line.line_number <= max(selection.start_line, selection.end_line)
+    end
+    defp is_line_selected?(_, _), do: false
 
     attr :row_index, :integer, required: true
     attr :col_index, :integer, required: true

@@ -2,6 +2,9 @@ export const GridNav = {
   mounted() {
 
     this.selectionStart = null;
+    this.currentLine = null;
+    this.lineNumbers = document.querySelectorAll('[data-line-number]');
+    this.lineCount = this.lineNumbers.length;
 
     this.isEditing = () => {
       return this.el.querySelector('textarea') !== null;
@@ -22,25 +25,15 @@ export const GridNav = {
         targetCell.focus();
     }
 
-    this.extendSelection = (direction) => {
-      const rows = this.el.querySelectorAll('[role="row"]');
-      const currentRow = document.activeElement.closest('[role="row"]');
-      const currentIndex = Array.from(rows).indexOf(currentRow);
-      
-      const targetIndex = currentIndex + direction;
-      if (targetIndex >= 0 && targetIndex < rows.length) {
-        this.pushEvent("extend_selection", {
-          line_number: rows[targetIndex].querySelector('[data-col="line-num"]').dataset.firstLine
-        });
-      }
-    }
-
     this.handleKeyDown = (e) => {
 
       // Escape should work during editing -- to cancel edit
+      // And outside editing, to clear selection? And to focus 
+      // the whole grid if we're focused on a cell?
       if (e.key === 'Escape') {
         if (this.selectionStart !== null) {
           this.selectionStart = null;
+          this.currentNumber = null;
           this.pushEvent("clear_selection", {});
         } else {
           this.pushEvent("cancel_edit");
@@ -56,27 +49,54 @@ export const GridNav = {
       // console.log("got currentRow" + this.currentRow)
       // console.log("got currentCol" + this.currentCol)
 
-      // Handle line number selection with Shift
-      if (e.shiftKey && this.getCellAt(this.currentRow, 0)?.dataset.selectable === 'true') {
-        const currentLineNums = this.getCurrentLineRange();
-        if (currentLineNums) {
-          if (this.selectionStart === null) {
-            // Start new selection
-            this.selectionStart = currentLineNums;
-            this.pushEvent("start_selection", { 
-              start: currentLineNums.first,
-              end: currentLineNums.last
-            });
-          } else {
-            // Update existing selection
-            this.pushEvent("update_selection", {
-              start: this.selectionStart.first,
-              end: currentLineNums.last
-            });
-          }
+      if (e.key === ' ') {
+        e.preventDefault();
+        lineNumberEl = e.target.closest('[data-line-number]');
+        if (!lineNumberEl) return;
+        lineNumber = parseInt(lineNumberEl.dataset.lineNumber);
+        
+        if (!this.selectionStart) {
+          // Start new selection
+          this.selectionStart = lineNumber;
+          this.currentLine = lineNumber;
+          console.log("starting selection at line " + lineNumber)
+          this.pushEvent("start_selection", {
+            start: lineNumber,
+            end: lineNumber
+          });
         }
         return;
       }
+
+      // Handle line number selection with Shift, if focused on a line number
+      if (e.shiftKey && ['ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();      
+        console.log("this.selectionStart: " + this.selectionStart);
+        console.log("this.selectionStart: " + this.selectionStart);
+        if (this.selectionStart == null) return;  
+        console.log("in a shift-arrow event; this.currentLine is " + this.currentLine + " and this.selectionStart is " + this.selectionStart);
+        console.log("this.lineNumbers[i]: " + this.lineNumbers[this.currentLine].innerHTML);
+        // Find next/previous line number element
+        const nextLineNum = e.key === 'ArrowUp' ? Math.max(this.currentLine - 1, this.selectionStart) : Math.min(this.currentLine + 1, this.lineCount);
+        // const direction = e.key === 'ArrowUp' ? 'previousElementSibling' : 'nextElementSibling';
+        console.log("nextLineNum: " + nextLineNum);
+        const nextEl = this.lineNumbers[nextLineNum];
+        // const nextEl = lineNumberEl.parentElement[direction];
+        console.log("nextEl: " + nextEl.innerHTML)
+        if (nextEl && nextEl.dataset.lineNumber) {
+          // const lineNumber = parseInt(nextEl.dataset.lineNumber);
+          if (this.selectionStart !== null) {
+            console.log("this.selectionstart ");
+            this.currentLine = nextLineNum;
+            this.pushEvent("update_selection", {
+              start: this.selectionStart,
+              end: nextLineNum
+            });
+            nextEl.focus();
+          }
+        }
+        return;
+      } 
 
       // Handle Enter to start editing, or to enter the grid nav if the parent
       // tabbable element is selected

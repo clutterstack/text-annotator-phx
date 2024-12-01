@@ -239,16 +239,43 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  def handle_event("start_selection", %{"start" => start, "end" => end_line}, socket) do
-    {:noreply, assign(socket, selection: %{start_line: start, end_line: end_line})}
+  def handle_event("toggle_line_selection", %{"line" => line_number}, socket) do
+    line_number = String.to_integer(line_number)
+
+    selection = case socket.assigns.selection do
+      nil ->
+        # Start new selection
+        %{start_line: line_number, end_line: line_number}
+
+      %{start_line: start_line} = current_selection ->
+        if line_number == start_line do
+          # Clicking the start line again clears selection
+          nil
+        else
+          # Extend selection to clicked line
+          %{current_selection | end_line: line_number}
+        end
+    end
+
+    {:noreply, assign(socket, selection: selection)}
   end
 
-  def handle_event("update_selection", %{"start" => start, "end" => end_line}, socket) do
-    {:noreply, assign(socket, selection: %{start_line: start, end_line: end_line})}
+  def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
+    {:noreply, assign(socket, selection: %{
+      start_line: start_line,
+      end_line: end_line
+    })}
+  end
+
+  def handle_event("update_selection", %{"start" => start_line, "end" => end_line}, socket) do
+    {:noreply, assign(socket, selection: %{
+      start_line: start_line,
+      end_line: end_line
+    })}
   end
 
   def handle_event("clear_selection", _params, socket) do
-    {:noreply, assign(socket, selection: nil, active_chunk: nil)}
+    {:noreply, assign(socket, selection: nil)}
   end
 
 def handle_event("create_collection", %{"name" => name}, socket) do
