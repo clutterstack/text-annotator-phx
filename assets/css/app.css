@@ -67,11 +67,3 @@
     @apply mb-2;
   }
   
-  .data-grid .focused {
-    @apply outline outline-2 outline-red-500;
-  }
-
-  .grid-cell:focus {
-    @apply bg-orange-300;
-  }
-  

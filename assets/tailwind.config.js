@@ -11,6 +11,12 @@ module.exports = {
     "../lib/annotator_web.ex",
     "../lib/annotator_web/**/*.*ex"
   ],
+  safelist: [
+    {
+      pattern: /row-span-\d+/,
+      variants: [], // Add responsive variants if needed, e.g., ['sm', 'md']
+    },
+  ],
   theme: {
     extend: {
       colors: {

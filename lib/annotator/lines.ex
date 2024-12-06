@@ -578,19 +578,37 @@ defp handle_content_split!(collection_id, start_line_number, content) do
   """
   def split_chunk(chunk_id, split_at_line_number) do
     Repo.transaction(fn ->
-      chunk = Repo.get!(Chunk, chunk_id) |> Repo.preload(chunk_lines: :line)
+      # Get the chunk with its lines, ordered by line number
+      chunk = Repo.one(
+        from c in Chunk,
+        where: c.id == ^chunk_id,
+        join: cl in assoc(c, :chunk_lines),
+        join: l in assoc(cl, :line),
+        order_by: l.line_number,
+        preload: [chunk_lines: {cl, line: l}]
+      )
 
+      # First delete all existing chunk_lines
+      {_, _} = Repo.delete_all(
+        from cl in ChunkLine,
+        where: cl.chunk_id == ^chunk_id
+      )
+
+      # Split the lines into two groups
       {first_lines, second_lines} = Enum.split_with(
-        chunk.chunk_lines,
-        fn cl -> cl.line.line_number < split_at_line_number end)
+        chunk.chunk_lines, fn cl -> cl.line.line_number < split_at_line_number
+        end)
 
       first_line_ids = Enum.map(first_lines, & &1.line_id)
       second_line_ids = Enum.map(second_lines, & &1.line_id)
 
+      # Create two new chunks
       with {:ok, first_chunk} <- create_chunk(chunk.collection_id, first_line_ids, chunk.note),
            {:ok, second_chunk} <- create_chunk(chunk.collection_id, second_line_ids, chunk.note),
            {:ok, _} <- Repo.delete(chunk) do
         {first_chunk, second_chunk}
+      else
+        error -> Repo.rollback(error)
       end
     end)
   end
