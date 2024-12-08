@@ -56,19 +56,19 @@ defmodule AnnotatorWeb.TextAnnotator do
 
       <div class="space-y-8 py-8">
         <.anno_grid
-          mode="content"
+          mode="author"
           lines={@lines}
           chunks={@chunks}
           editing={@editing}
           selection={@selection}
         >
-          <:col :let={group} name="line-span" label="Chunk lines" editable={false} deletable={false}>
+          <:col name="line-span" label="Chunk lines" editable={false} deletable={false}>
           </:col>
-          <:col :let={group} name="line-num" label="Line" editable={false} deletable={false}>
+          <:col name="line-num" label="Line" editable={false} deletable={false}>
           </:col>
-          <:col :let={group} name="content" label="Content" editable={true} deletable={true}>
+          <:col name="content" label="Content" editable={true} deletable={true}>
           </:col>
-          <:col :let={group} name="note" label="Note" editable={true} deletable={false}>
+          <:col name="note" label="Note" editable={true} deletable={false}>
           </:col>
         </.anno_grid>
       </div>
@@ -190,17 +190,19 @@ defmodule AnnotatorWeb.TextAnnotator do
   def handle_event("rechunk", %{}, socket) do
     # Find boundaries of new chunk
     %{start_line: chunk_start, end_line: chunk_end} = socket.assigns.selection
+    Logger.info("chunk_start; chunk_end: " <> to_string(chunk_start) <> ", " <> to_string(chunk_end))
+    Logger.info("collection id: " <> inspect socket.assigns.collection.id)
     # find chunks that currently contain the line boundaries
-    first_chunk_id = find_containing_chunk(chunk_start, socket.assigns.chunks)
-    last_chunk_id = find_containing_chunk(chunk_end, socket.assigns.chunks)
+    first_chunk_id = Lines.get_chunk_id_by_line(socket.assigns.collection.id, chunk_start)
+    last_chunk_id = Lines.get_chunk_id_by_line(socket.assigns.collection.id, chunk_end)
     Logger.info("first chunk; last chunk: #{inspect first_chunk_id}, #{inspect last_chunk_id}")
     # split first chunk at starting line
     split_chunk({first_chunk_id, chunk_start}, socket)
     # split last chunk at ending line
     split_chunk({last_chunk_id, chunk_end}, socket)
     # get ids of chunks where the start and end lines now sit
-    new_first_chunk_id = find_containing_chunk(chunk_start, socket.assigns.chunks)
-    new_last_chunk_id = find_containing_chunk(chunk_end, socket.assigns.chunks)
+    new_first_chunk_id = Lines.get_chunk_id_by_line(socket.assigns.collection.id, chunk_start)
+    new_last_chunk_id = Lines.get_chunk_id_by_line(socket.assigns.collection.id, chunk_end)
     # merge all chunks between starting and ending lines
     merge_chunks({new_first_chunk_id, new_last_chunk_id}, socket)
     ## TODO: merge notes?
@@ -209,43 +211,26 @@ defmodule AnnotatorWeb.TextAnnotator do
     {:noreply, socket}
   end
 
-  def handle_event("focus_line", params, socket) do
-    Logger.info("focus_line fired on #{inspect params}")
-    JS.focus() |> IO.inspect()
-    {:noreply, socket}
-end
+  # def handle_event("toggle_line_selection", %{"line" => line_number}, socket) do
+  #   line_number = String.to_integer(line_number)
 
-  def handle_event("focus_gridcell", params, socket) do
-      Logger.info("focus_gridcell fired on #{inspect params}")
-      JS.focus(to: "#cell-" <> params["row"] <> "-" <> params["col"]) |> IO.inspect()
-      {:noreply, socket}
-  end
+  #   selection = case socket.assigns.selection do
+  #     nil ->
+  #       # Start new selection
+  #       %{start_line: line_number, end_line: line_number}
 
-  def handle_event("log_focus", params, socket) do
-    Logger.info("a line element got focus")
-    {:noreply, socket}
-  end
+  #     %{start_line: start_line} = current_selection ->
+  #       if line_number == start_line do
+  #         # Clicking the start line again clears selection
+  #         nil
+  #       else
+  #         # Extend selection to clicked line
+  #         %{current_selection | end_line: line_number}
+  #       end
+  #   end
 
-  def handle_event("toggle_line_selection", %{"line" => line_number}, socket) do
-    line_number = String.to_integer(line_number)
-
-    selection = case socket.assigns.selection do
-      nil ->
-        # Start new selection
-        %{start_line: line_number, end_line: line_number}
-
-      %{start_line: start_line} = current_selection ->
-        if line_number == start_line do
-          # Clicking the start line again clears selection
-          nil
-        else
-          # Extend selection to clicked line
-          %{current_selection | end_line: line_number}
-        end
-    end
-
-    {:noreply, assign(socket, selection: selection)}
-  end
+  #   {:noreply, assign(socket, selection: selection)}
+  # end
 
   def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
     {:noreply, assign(socket, selection: %{
@@ -324,9 +309,11 @@ def handle_event("create_collection", %{"name" => name}, socket) do
   defp find_containing_chunk(line_number, chunks) do
     chunk = Enum.find(chunks, fn chunk ->
       chunk.chunk_lines
-      |> Enum.any?(fn lines ->
-        lines.line.line_number == line_number
+      |> IO.inspect()
+      |> Enum.any?(fn line ->
+        line.line_number == line_number
       end)
+      |> IO.inspect()
     end)
     chunk.id
   end

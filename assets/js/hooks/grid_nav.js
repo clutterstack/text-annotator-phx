@@ -18,7 +18,7 @@ export const GridNav = {
 
       e.preventDefault();
 
-      if (this.mode === "notes" && this.isSelecting) {
+      if (this.isSelecting) {
         this.chunkSelection(e);
       }
 
@@ -32,6 +32,70 @@ export const GridNav = {
       // Navigate grid cells with arrow keys
       if (!this.isSelecting) {
         this.arrowNav(e.key);
+      }
+    };
+
+    this.handlemousedown = (e) => {
+
+      if (e.target.closest(".line-number")) {
+        console.log("mousedown at " + e.target.closest(".line-number").innerText);
+        this.isSelecting = true;
+        this.selectionStart = e.target.closest(".line-number").innerText;
+        this.currentLine = this.selectionStart;
+        console.log("on mousedown, changed this.selectionStart to " + this.selectionStart);
+        this.el.removeEventListener('mousedown', this.handlemousedown);
+        this.el.addEventListener('mouseover', this.handlemouseover);
+        this.el.addEventListener('mouseup', this.handlemouseup);
+        this.el.addEventListener('mouseleave', this.handlemouseleave);
+      }
+
+    };
+    
+    this.handlemouseover = (e) => {
+      e.preventDefault();
+
+      if (e.target.closest(".line-number")) {
+        e.preventDefault();
+        const nowline = e.target.closest(".line-number");
+        console.log("handlemouseover");
+        // console.log("mouseover at " + e.target.closest(".line-number").innerText);
+        nowline.classList.remove("selectedline"); // in case I'm duplicating this class
+        const linediff = nowline.innerText - this.currentLine;
+        console.log("linediff: " + linediff );
+        if (linediff > 0) {
+          console.log("linediff is " + linediff + ". Adding class selectedline.")
+          nowline.classList.add("selectedline");
+        } else if (linediff < 0) {
+          console.log("linediff is " + linediff + ". Removing class selectedline.")
+          e.target.closest(".line-number").classList.remove("selectedline");
+        }
+        this.currentLine = nowline.innerText;
+
+        console.log("mouseover at " + e.target.closest(".line-number").innerText + ". this.currentLine updated to " + this.currentLine)
+        // e.target.addEventListener('mouseleave', this.handlemouseleave, { once: true });
+      }
+    };
+
+    this.handlemouseup = (e) => {
+      // if (e.target.closest(".line-number")) {
+        console.log("mouseup");
+        this.pushEvent("update_selection", {
+          start: this.selectionStart,
+          end: this.currentLine
+        });
+        this.submitChunk();
+
+        this.selectionStart = null
+        this.el.removeEventListener('mouseup', this.handlemouseup);
+        this.el.removeEventListener('mouseover', this.handlemouseover);
+        this.el.removeEventListener('mouseleave', this.handlemouseleave);
+      // }
+    };
+
+    this.handlemouseleave = (e) => {
+      if (e.target.id == "annotated-content") {
+        console.log("mouseleave of #annotated-content element");
+        this.clearSelection();
       }
     };
 
@@ -71,11 +135,7 @@ export const GridNav = {
     this.escapeKey = (key) => {
       if (key === 'Escape') {
         if (this.selectionStart !== null) {
-          console.log("this.selection")
-          this.selectionStart = null;
-          this.currentLine = null;
-          this.isSelecting = false;
-          this.pushEvent("cancel_selection", {});
+          this.clearSelection();
           this.focusCell();
         } else if (this.isEditing()) {
           console.log("this.isEditing(): " + this.isEditing())
@@ -89,41 +149,27 @@ export const GridNav = {
     }
 
     this.enterKey = (key) => {
-      if (key === 'Enter' && !this.isEditing()) {
-        console.log("grid_nav hook detected an Enter key in mode " + this.mode)
+      if (key === 'Enter' && !this.isEditing() && this.mode == "author") {
+        console.log("grid_nav hook detected an Enter key")
         if (document.activeElement.id == "annotated-content") {
           this.currentRow = 0;
           this.currentCol = 2;
           this.focusCell();
         } 
-        else
-        {
-          switch (this.mode) {
-            case "content":
-              console.log("mode is content");
-              console.log("classes: " + document.activeElement.classList);
-              if (document.activeElement.classList.contains("editable")) {
-                this.startEdit();
-              }
-              break;
-            case "notes":
-              console.log("mode is notes");
-              console.log("dataset.col? " + document.activeElement.dataset.col);
-              switch (document.activeElement.dataset.col) {
-                case "note":
-                  this.startEdit();
-                  break;
-                case "content":
-                  this.startSelect();
-                  break;
-              } 
-              if (this.selectionStart !== null) {
-                  console.log("gonna submitChunk");
-                  this.submitChunk();
-              }
-              break; 
+        else {         
+          // console.log("classes: " + document.activeElement.classList);
+          if (document.activeElement.classList.contains("editable")) {
+            this.startEdit();
+          } 
+          else if (document.activeElement.dataset.col == "line-num") {
+              console.log("enter key needs to activate line selection")
+              this.startSelect();
           }
-        }   
+          else if (this.isSelecting == true) {
+            console.log("gonna submitChunk");
+            this.submitChunk();
+          }
+        }  
       }
     }
       
@@ -133,19 +179,18 @@ export const GridNav = {
       // Arrow through lines
       if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
         console.log("this.currentLine is " + this.currentLine + " and this.selectionStart is " + this.selectionStart);
-        console.log("this.lineNumbers[i]: " + this.lineNumbers[this.currentLine].innerHTML);
+        console.log("this.lineNumbers[i]: " + this.lineNumbers[this.currentLine].innerText);
         // Find next/previous line number element
         const nextLineNum = e.key === 'ArrowUp' ? Math.max(this.currentLine - 1, this.selectionStart) : Math.min(this.currentLine + 1, this.lineCount);
         console.log("nextLineNum: " + nextLineNum);
         const nextEl = this.lineNumbers[nextLineNum];
-        console.log("nextEl: " + nextEl.innerHTML)
+        console.log("nextEl: " + nextEl.innerText)
         nextEl.focus();
         this.currentLine = nextLineNum;
 
         // Change selection if shift key was down
         // const lineNumber = parseInt(nextEl.dataset.lineNumber);
         if (e.shiftKey && this.selectionStart !== null) {
-          console.log("nextLineNum is " + nextLineNum);
           this.pushEvent("update_selection", {
             start: this.selectionStart,
             end: nextLineNum
@@ -155,7 +200,6 @@ export const GridNav = {
       if (e.key === ' ' && this.isSelecting) {
         console.log("space key in chunkSelection")
         if (!this.selectionStart) {
-          const lineNumber = this.currentLine;
           // Start new selection
           this.selectionStart = this.currentLine;
           console.log("starting selection at line " + this.currentLine)
@@ -165,6 +209,16 @@ export const GridNav = {
           });
         }
       }
+    }
+
+    this.clearSelection = () => {
+      console.log("clearing selection")
+      this.selectionStart = null;
+      this.currentLine = null;
+      this.isSelecting = false;
+      (document.querySelectorAll(".selectedline")).forEach((selectedline) => selectedline.classList.remove("selectedline"));
+      this.pushEvent("cancel_selection", {});
+      this.el.addEventListener('mousedown', this.handlemousedown);
     }
 
     this.startEdit = () => {
@@ -177,6 +231,7 @@ export const GridNav = {
     }
     
     this.startSelect = () => {
+      console.log("this.startSelect invoked")
       this.isSelecting = true;
       lineNumberEl = document.activeElement.firstElementChild;
         if (!lineNumberEl) return;
@@ -188,7 +243,9 @@ export const GridNav = {
     }
 
     this.submitChunk = () => {
+      console.log("submitChunk: pushing rechunk event")
       this.pushEvent("rechunk");
+      this.clearSelection();
     }
 
     this.isEditing = () => {
@@ -220,9 +277,13 @@ export const GridNav = {
     };
     
     this.el.addEventListener('keyup', this.handlekeyup);
+    this.el.addEventListener('mousedown', this.handlemousedown);
   },
 
   destroyed() {
     this.el.removeEventListener('keyup', this.handlekeyup);
+    this.el.removeEventListener('mousedown', this.handlemousedown);
+    this.el.removeEventListener('mouseleave', this.handlemouseleave);
+
   }
 };

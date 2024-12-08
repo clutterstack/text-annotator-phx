@@ -22,82 +22,81 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     chunk_groups = group_lines_by_chunks(assigns.lines, assigns.chunks)
     assigns = assign(assigns, :chunk_groups, chunk_groups)
     ~H"""
-    <div class="w-full"
+    <div class="w-full grid grid-cols-[min-content_min-content_1fr_1fr] items-start rounded-lg border"
         role="grid"
         tabindex="0"
         id="annotated-content"
         phx-hook="GridNav"
-        data-mode={@mode && @mode || "read"}
+        data-mode={@mode}
         aria-multiselectable="true">
-      <div class=" rounded-lg overflow-hidden bg-white">
-        <div role="rowgroup">
-          <div role="row" class="grid grid-cols-[80px_80px_1fr_1fr] border-b bg-zinc-50">
-            <div :for={col <- @col}
-                 role="columnheader"
-                 class="p-3 text-sm font-medium text-zinc-500">
-              <%= col[:label] %>
-            </div>
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
+        <div role="row" class="grid grid-cols-subgrid col-span-4 border-b bg-zinc-50">
+          <div :for={col <- @col}
+                role="columnheader"
+                class="p-1 text-sm font-medium text-zinc-500">
+            <%= col[:label] %>
           </div>
         </div>
-
-        <div role="rowgroup">
-          <%= for {group, row_index} <- Enum.with_index(@chunk_groups) do %>
-            <% {chunk, lines} = group %>
-            <% rowspanclass = "row-span-" <> to_string(Enum.count(lines)) %>
-            <div role="row"
-                 class={[
-                   "grid grid-cols-[80px_80px_1fr_1fr] gap-4",
-                   "hover:bg-zinc-50",
-                   row_index != length(@chunk_groups) - 1 && "border-b",
-                   # Add selected state styling
-                   is_selected?(lines, @selection) && "bg-blue-50"
-                 ]}
-                 aria-selected={is_selected?(lines, @selection)}>
-              <%= for {col, col_index} <- Enum.with_index(@col) do %>
-                <div role="gridcell"
-                  tabindex="-1"
-                  id={"cell-" <> to_string(row_index) <> "-" <> to_string(col_index)}
-                  data-col={col[:name]}
-                  data-col-index={col_index}
-                  data-row-index={row_index}
-                  data-first-line={if(lines != [], do: List.first(lines).line_number)}
-                  data-last-line={if(lines != [], do: List.last(lines).line_number)}
-                  data-chunk-id={if(chunk, do: chunk.id)}
-                  data-selectable={col[:name] == "line-num"}
-                  data-deletable={col[:deletable]}
-                  aria-label={get_aria_label(col, lines, chunk)}
-                  class={[
-                    rowspanclass,
-                    "p-3 min-h-[3rem] z-30 focus:bg-fuchsia-600",
-                    col_index != length(@col) - 1 && "border-r",
-                    col[:editable] && @mode !== "read-only" && "hover:cursor-pointer hover:bg-zinc-100/50 editable",
-                    col[:name] in ["line-num", "content"] && "grid grid-rows-subgrid gap-4"
-                  ]}
-                  >
-                  <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
-                    <.editor
-                      group={{chunk, lines}}
-                      col={col}
-                      row_index={row_index}
-                      col_index={col_index}
-                      edit_text={get_edit_text(col[:name], {chunk, lines}, lines)}
-                    />
-                  <% else %>
-                    <.cell_content
-                      col={col}
-                      row_index={to_string(row_index)}
-                      col_index={to_string(col_index)}
-                      chunk={chunk}
-                      lines={lines}
-                      col_name={col[:name]}
-                    />
-                  <% end %>
-                </div>
-              <% end %>
-            </div>
-          <% end %>
-        </div>
       </div>
+
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
+        <%= for {group, row_index} <- Enum.with_index(@chunk_groups) do %>
+          <% {chunk, lines} = group %>
+          <% rowspanclass = "row-span-" <> to_string(Enum.count(lines)) %>
+          <div role="row"
+                class={[
+                  "grid grid-cols-subgrid col-span-4",
+                  "hover:bg-zinc-50",
+                  row_index != length(@chunk_groups) - 1 && "border-b",
+                  # Add selected state styling
+                  is_selected?(lines, @selection) && "bg-blue-50"
+                ]}
+                aria-selected={is_selected?(lines, @selection)}>
+            <%= for {col, col_index} <- Enum.with_index(@col) do %>
+              <div role="gridcell"
+                tabindex="-1"
+                id={"cell" <> to_string(row_index) <> to_string(col_index)}
+                data-col={col[:name]}
+                data-col-index={col_index}
+                data-row-index={row_index}
+                data-first-line={if(lines != [], do: List.first(lines).line_number)}
+                data-last-line={if(lines != [], do: List.last(lines).line_number)}
+                data-chunk-id={if(chunk, do: chunk.id)}
+                data-selectable={col[:name] == "line-num"}
+                data-deletable={col[:deletable]}
+                aria-label={get_aria_label(col, lines, chunk)}
+                class={[
+                  rowspanclass,
+                  "p-1 min-h-[3rem] z-30 focus:bg-fuchsia-600",
+                  col_index != length(@col) - 1 && "border-r",
+                  col[:editable] && @mode !== "read-only" && "hover:cursor-pointer hover:bg-zinc-100/50 editable",
+                  col[:name] in ["line-num", "content"] && "grid grid-rows-subgrid"
+                ]}
+                >
+                <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
+                  <.editor
+                    group={{chunk, lines}}
+                    col={col}
+                    row_index={row_index}
+                    col_index={col_index}
+                    edit_text={get_edit_text(col[:name], {chunk, lines}, lines)}
+                  />
+                <% else %>
+                  <.cell_content
+                    col={col}
+                    row_index={to_string(row_index)}
+                    col_index={to_string(col_index)}
+                    chunk={chunk}
+                    lines={lines}
+                    col_name={col[:name]}
+                  />
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
 
       <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard shortcuts">
         <p>Press <kbd>Space</kbd> to start selection</p>
@@ -105,7 +104,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <p>Press <kbd>n</kbd> to add a note to selected lines</p>
         <p>Press <kbd>Esc</kbd> to cancel selection</p>
       </div>
-    </div>
     """
   end
 
@@ -202,28 +200,23 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     <%= case @col[:name] do %>
       <% "line-num" -> %>
         <%= for line <- @lines do %>
-          <div class="py-1 px-2 hover:bg-zinc-100 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4"
+          <div class="line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"
               role="button"
               tabindex="-1"
               data-line-number={line.line_number}
               data-selectable="true"
-              phx-click="focus_line"
-              phx-value-row={@row_index}
-              phx-value-col={@col_index}
-              phx-value-line={line.line_number}
               aria-selected={is_line_selected?(line, @selection)}>
-              <pre class="whitespace-pre-wrap"><code> <%= line.line_number %></code></pre>
+              <pre><code><%= line.line_number %></code></pre>
           </div>
         <% end %>
       <% "content" -> %>
         <%= for line <- @lines do %>
-          <div class="py-1 px-2 hover:bg-zinc-100 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4"
-              role="button"
-              tabindex="-1"
-              data-selectable="true"
-              phx-click="focus_gridcell"
+          <div class="py-1 hover:bg-zinc-100/50 self-start"
+              role="presentation"
+              phx-click={JS.focus(to: "#cell" <> @row_index <> @col_index)}
               phx-value-row={@row_index}
-              phx-value-col={@col_index}>
+              phx-value-col={@col_index}
+              tabindex="0" >
               <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
           </div>
         <% end %>
@@ -241,14 +234,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           <% end %>
           </div>
       <% "note" -> %>
-        <div class="text-gray-400 focus:bg-fuchsia-600 h-full"
-          tabindex="-1"
-          phx-click="focus_gridcell"
-          phx-value-row={@row_index}
-          phx-value-col={@col_index}>
           <%= @chunk && @chunk.note || "No note" %>
-        </div>
-
       <% _ -> %>
         <%= if @col do %>
           <%= inspect(@col) %>

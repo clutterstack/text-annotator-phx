@@ -67,3 +67,6 @@
     @apply mb-2;
   }
   
+  .line-number.selectedline {
+    @apply bg-fuchsia-200 hover:bg-fuchsia-400;
+  }

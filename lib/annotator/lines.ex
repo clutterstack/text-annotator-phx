@@ -308,6 +308,29 @@ defp handle_content_split!(collection_id, start_line_number, content) do
     )
   end
 
+@doc """
+Gets the chunk containing a line with the given line number in a collection.
+Returns nil if no chunk contains that line.
+
+## Examples
+
+    iex> (collection_id, 5)
+    %Chunk{id: 123, ...}
+
+    iex> get_chunk_id_by_line(collection_id, 999)
+    nil
+"""
+def get_chunk_id_by_line(collection_id, line_number) do
+  Repo.one(
+    from c in Chunk,
+    join: cl in assoc(c, :chunk_lines),
+    join: l in assoc(cl, :line),
+    where: c.collection_id == ^collection_id and
+           l.line_number == ^line_number,
+    select: c.id
+  )
+end
+
   defp upsert_line!(collection_id, attrs) do
     %Line{collection_id: collection_id}
     |> Line.changeset(attrs)
