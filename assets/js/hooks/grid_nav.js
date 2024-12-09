@@ -22,9 +22,6 @@ export const GridNav = {
         this.chunkSelection(e);
       }
 
-      this.currentRow = document.activeElement.dataset.rowIndex;
-      this.currentCol = document.activeElement.dataset.colIndex;
-
       // Handle Enter to start editing, or to enter the grid nav if the parent
       // tabbable element is selected
       this.enterKey(e.key);
@@ -38,11 +35,15 @@ export const GridNav = {
     this.handlemousedown = (e) => {
 
       if (e.target.closest(".line-number")) {
+        console.log("set this.currentRow, this.currentCol to " + e.target.closest(".line-number").parentElement.dataset.rowIndex + ", " + e.target.closest(".line-number").parentElement.dataset.colIndex);
+        this.currentRow = e.target.closest(".line-number").parentElement.dataset.rowIndex;
+        this.currentCol = e.target.closest(".line-number").parentElement.dataset.colIndex;
         console.log("mousedown at " + e.target.closest(".line-number").innerText);
         this.isSelecting = true;
-        this.selectionStart = e.target.closest(".line-number").innerText;
+        this.selectionStart = Number(e.target.closest(".line-number").innerText);
         this.currentLine = this.selectionStart;
         console.log("on mousedown, changed this.selectionStart to " + this.selectionStart);
+        console.log("also, typeof this.selectionStart is " + typeof(this.selectionStart))
         this.el.removeEventListener('mousedown', this.handlemousedown);
         this.el.addEventListener('mouseover', this.handlemouseover);
         this.el.addEventListener('mouseup', this.handlemouseup);
@@ -69,23 +70,25 @@ export const GridNav = {
           console.log("linediff is " + linediff + ". Removing class selectedline.")
           e.target.closest(".line-number").classList.remove("selectedline");
         }
-        this.currentLine = nowline.innerText;
+        this.currentLine = Number(nowline.innerText);
 
         console.log("mouseover at " + e.target.closest(".line-number").innerText + ". this.currentLine updated to " + this.currentLine)
+        console.log("also, typeof this.currentLine is now" + typeof(this.currentLine))
         // e.target.addEventListener('mouseleave', this.handlemouseleave, { once: true });
       }
     };
 
     this.handlemouseup = (e) => {
       // if (e.target.closest(".line-number")) {
-        console.log("mouseup");
+        console.log("mouseup is updating selection. this.selectionStart is type " + typeof(this.selectionStart) + " and this.currentLine is type " + typeof(this.currentLine))
         this.pushEvent("update_selection", {
           start: this.selectionStart,
           end: this.currentLine
         });
         this.submitChunk();
+        this.focusCell();
 
-        this.selectionStart = null
+        this.selectionStart = null;
         this.el.removeEventListener('mouseup', this.handlemouseup);
         this.el.removeEventListener('mouseover', this.handlemouseover);
         this.el.removeEventListener('mouseleave', this.handlemouseleave);
@@ -100,41 +103,49 @@ export const GridNav = {
     };
 
     this.arrowNav = (key) => {
-      const rows = Array.from(this.el.querySelectorAll('[role="row"]'));
-      const cellRow = Number(this.currentRow);
-      const cellCol = Number(this.currentCol);
-      const maxRow = rows.length - 2; // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
-      const maxCol = this.el.querySelectorAll('[role="columnheader"]').length - 1;
-      // console.log("maxRow: "+ maxRow + "; maxCol: " + maxCol);
-      
-      switch (key) {
-        case 'ArrowUp':
-          this.currentRow = Math.max(0, cellRow - 1);
-          console.log("ArrowUp to " + this.currentRow + ", " + this.currentCol);
-          this.focusCell();
-          break;
-        case 'ArrowDown':
-          this.currentRow = Math.min(maxRow, cellRow + 1);
-          console.log("ArrowDown to " + this.currentRow + ", " + this.currentCol);
-          this.focusCell();
-          break;
-        case 'ArrowLeft':
-          this.currentCol = Math.max(0, cellCol - 1);
-          console.log("ArrowLeft to " + this.currentRow + ", " + this.currentCol);
-          this.focusCell();
-          break;
-        case 'ArrowRight':
-          console.log("Right arrow nav; currentCol is " + this.currentCol + " and maxCol is " + maxCol);
-          this.currentCol = Math.min(maxCol, cellCol + 1);
-          console.log("ArrowRight to " + this.currentRow + ", " + this.currentCol);
-          this.focusCell();
-          break;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+        this.currentRow = document.activeElement.dataset.rowIndex;
+        this.currentCol = document.activeElement.dataset.colIndex;
+  
+        const rows = Array.from(this.el.querySelectorAll('[role="row"]'));
+        const cellRow = Number(this.currentRow);
+        const cellCol = Number(this.currentCol);
+        const maxRow = rows.length - 2; // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
+        const maxCol = this.el.querySelectorAll('[role="columnheader"]').length - 1;
+        // console.log("maxRow: "+ maxRow + "; maxCol: " + maxCol);
+        
+        switch (key) {
+          case 'ArrowUp':
+            this.currentRow = Math.max(0, cellRow - 1);
+            console.log("ArrowUp to " + this.currentRow + ", " + this.currentCol);
+            this.focusCell();
+            break;
+          case 'ArrowDown':
+            this.currentRow = Math.min(maxRow, cellRow + 1);
+            console.log("ArrowDown to " + this.currentRow + ", " + this.currentCol);
+            this.focusCell();
+            break;
+          case 'ArrowLeft':
+            this.currentCol = Math.max(0, cellCol - 1);
+            console.log("ArrowLeft to " + this.currentRow + ", " + this.currentCol);
+            this.focusCell();
+            break;
+          case 'ArrowRight':
+            console.log("Right arrow nav; currentCol is " + this.currentCol + " and maxCol is " + maxCol);
+            this.currentCol = Math.min(maxCol, cellCol + 1);
+            console.log("ArrowRight to " + this.currentRow + ", " + this.currentCol);
+            this.focusCell();
+            break;
+        }
       }
     }
 
     this.escapeKey = (key) => {
       if (key === 'Escape') {
-        if (this.selectionStart !== null) {
+        if (this.isSelecting) {
+          console.log("escapeKey: this.isSelecting was true")
+          console.log("this.currentRow and this.currentCol are " + this.currentRow + ", " + this.currentCol)
+
           this.clearSelection();
           this.focusCell();
         } else if (this.isEditing()) {
@@ -156,7 +167,7 @@ export const GridNav = {
           this.currentCol = 2;
           this.focusCell();
         } 
-        else {         
+        else { 
           // console.log("classes: " + document.activeElement.classList);
           if (document.activeElement.classList.contains("editable")) {
             this.startEdit();
@@ -187,10 +198,16 @@ export const GridNav = {
         console.log("nextEl: " + nextEl.innerText)
         nextEl.focus();
         this.currentLine = nextLineNum;
-
+        // Also update gridcell
+        const gridCell = nextEl.parentElement;
+        console.log("gridCell: " + gridCell)
+        this.currentRow = gridCell.dataset.rowIndex;
+        this.currentCol = gridCell.dataset.colIndex;
+        console.log("Updated this.currentRow and this.currentCol to " + this.currentRow + ", " + this.currentCol)
         // Change selection if shift key was down
         // const lineNumber = parseInt(nextEl.dataset.lineNumber);
         if (e.shiftKey && this.selectionStart !== null) {
+          console.log("shift-arrow is updating selection. this.selectionStart is type " + typeof(this.selectionStart) + " and nextLineNum is type " + typeof(nextLineNum))
           this.pushEvent("update_selection", {
             start: this.selectionStart,
             end: nextLineNum
@@ -231,7 +248,7 @@ export const GridNav = {
     }
     
     this.startSelect = () => {
-      console.log("this.startSelect invoked")
+      console.log("this.startSelect invoked with enter key at row " + this.currentRow + ", col " + this.currentCol);
       this.isSelecting = true;
       lineNumberEl = document.activeElement.firstElementChild;
         if (!lineNumberEl) return;
@@ -263,6 +280,7 @@ export const GridNav = {
     };
 
     this.focusCell = () =>  {
+      console.log("this.focusCell: this.currentRow, this.currentCol: " + this.currentRow + ", " + this.currentCol)
       const targetCell = this.getCellAt(this.currentRow, this.currentCol);
         targetCell.focus();
     };

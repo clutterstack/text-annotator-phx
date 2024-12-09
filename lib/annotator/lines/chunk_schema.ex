@@ -3,151 +3,118 @@ defmodule Annotator.Lines.Chunk do
   import Ecto.Changeset
   import Ecto.Query
   alias Annotator.Repo
-  alias Annotator.Lines.{Line, ChunkLine}
+  alias Annotator.Lines.Line
 
   schema "chunks" do
     field :note, :string, default: ""
+    field :start_line, :integer
+    field :end_line, :integer
+    field :temporary, :boolean, default: false
     belongs_to :collection, Annotator.Lines.Collection
-    has_many :chunk_lines, ChunkLine, on_replace: :delete
-    has_many :lines, through: [:chunk_lines, :line]
+    has_many :lines, Annotator.Lines.Line, on_delete: :nilify_all
     timestamps(type: :utc_datetime)
   end
 
-  @doc """
-  Creates a changeset for a new chunk or updates an existing one.
-  Accepts the following parameters:
-  - note: The text content of the note
-  - collection_id: The ID of the collection this chunk belongs to
-  - line_ids: List of line IDs that this chunk should contain
-  """
   def changeset(chunk, attrs) do
     chunk
-    |> cast(attrs, [:note, :collection_id])
-    |> validate_required([:collection_id])
-    |> validate_note_length()
-    |> put_line_associations(attrs)
-    |> validate_line_ids(attrs)
-    |> prepare_chunk_lines(attrs)
-    |> validate_lines_exist()
-    |> validate_lines_in_same_collection()
-    |> validate_sequential_lines()
+    |> cast(attrs, [:note, :collection_id, :start_line, :end_line, :temporary])
+    |> validate_required([:collection_id, :start_line, :end_line])
+    |> foreign_key_constraint(:name)
+    |> validate_number(:start_line, greater_than_or_equal_to: 0)
+    |> validate_number(:end_line, greater_than_or_equal_to: 0)
+    |> validate_end_line_after_start_line()
+    |> maybe_validate_no_overlap()
+    |> maybe_validate_lines_exist()
   end
 
-  # Validates that line_ids is present and is a list
-  defp validate_line_ids(changeset, attrs) do
-    case attrs do
-      %{line_ids: ids} when is_list(ids) and ids != [] ->
-        changeset
-      %{"line_ids" => ids} when is_list(ids) and ids != [] ->
-        changeset
-      _ ->
-        add_error(changeset, :line_ids, "must be provided and contain at least one line")
+  defp maybe_validate_no_overlap(changeset) do
+    if get_field(changeset, :temporary) do
+      changeset
+    else
+      validate_no_overlap(changeset)
     end
   end
 
-  # Prepares chunk_lines associations based on line_ids
-  defp prepare_chunk_lines(changeset, attrs) do
-    case get_line_ids(attrs) do
-      [] -> changeset
-      line_ids ->
-        chunk_lines = Enum.map(line_ids, fn line_id ->
-          %{line_id: line_id}
-        end)
-        put_assoc(changeset, :chunk_lines, chunk_lines)
+  defp maybe_validate_lines_exist(changeset) do
+    if get_field(changeset, :temporary) do
+      changeset
+    else
+      validate_lines_exist(changeset)
     end
   end
 
-  # Helper to extract line_ids from attrs, handling both string and atom keys
-  defp get_line_ids(attrs) do
-    case attrs do
-      %{line_ids: ids} -> ids
-      %{"line_ids" => ids} -> ids
-      _ -> []
-    end
-  end
-
-  # Validates that all referenced lines exist in the database
-  defp validate_lines_exist(changeset) do
-    case get_line_ids(changeset.params) do
-      [] -> changeset
-      line_ids ->
-        existing_count = Repo.one(from l in Line, where: l.id in ^line_ids, select: count())
-
-        if existing_count == length(line_ids) do
+  defp validate_end_line_after_start_line(changeset) do
+    case {get_field(changeset, :start_line), get_field(changeset, :end_line)} do
+      {start_line, end_line} when not is_nil(start_line) and not is_nil(end_line) ->
+        if end_line >= start_line do
           changeset
         else
-          add_error(changeset, :line_ids, "contains non-existent lines")
+          add_error(changeset, :end_line, "must be greater than or equal to start_line")
+        end
+      _ -> changeset
+    end
+  end
+
+  defp validate_no_overlap(changeset) do
+    case {get_field(changeset, :collection_id),
+          get_field(changeset, :start_line),
+          get_field(changeset, :end_line),
+          get_field(changeset, :id)} do
+      {nil, _, _, _} -> changeset
+      {_, nil, _, _} -> changeset
+      {_, _, nil, _} -> changeset
+      {collection_id, start_line, end_line, chunk_id} ->
+        # Base query for overlapping chunks
+        base_query = from c in __MODULE__,
+          where: c.collection_id == ^collection_id and
+            ((c.start_line <= ^end_line and c.end_line >= ^start_line) or
+            (c.start_line >= ^start_line and c.start_line <= ^end_line) or
+            (c.end_line >= ^start_line and c.end_line <= ^end_line))
+
+        # Add ID condition only if we have an ID
+        query = if chunk_id do
+          from c in base_query, where: c.id != ^chunk_id
+        else
+          base_query
+        end
+
+        case Repo.exists?(query) do
+          true -> add_error(changeset, :base, "chunk overlaps with existing chunk")
+          false -> changeset
         end
     end
   end
 
-  # Validates that all lines belong to the same collection as the chunk
-  defp validate_lines_in_same_collection(changeset) do
-    with collection_id when not is_nil(collection_id) <- get_field(changeset, :collection_id),
-         line_ids when line_ids != [] <- get_line_ids(changeset.params) do
-
-      query = from l in Line,
-        where: l.id in ^line_ids and l.collection_id != ^collection_id
-
-      case Repo.exists?(query) do
-        true -> add_error(changeset, :line_ids, "must all belong to the same collection")
-        false -> changeset
-      end
-    else
-      _ -> changeset
-    end
-  end
-
-  # Validates that all lines in the chunk are sequential
-  defp validate_sequential_lines(changeset) do
-    with line_ids when line_ids != [] <- get_line_ids(changeset.params) do
-      lines = Repo.all(from l in Line,
-        where: l.id in ^line_ids,
-        order_by: l.line_number,
-        select: %{id: l.id, line_number: l.line_number}
-      )
-
-      line_numbers = Enum.map(lines, & &1.line_number)
-      expected_range = Enum.to_list(List.first(line_numbers)..List.last(line_numbers))
-
-      if line_numbers == expected_range do
+  defp validate_lines_exist(changeset) do
+    # Skip validation if this is a temporary chunk
+    case {get_field(changeset, :temporary),
+          get_field(changeset, :collection_id),
+          get_field(changeset, :start_line),
+          get_field(changeset, :end_line)} do
+      {true, _, _, _} ->
         changeset
-      else
-        add_error(changeset, :line_ids, "must be sequential lines")
-      end
-    else
+      {_, collection_id, start_line, end_line} when not is_nil(collection_id)
+                                               and not is_nil(start_line)
+                                               and not is_nil(end_line) ->
+        # Check if all lines in the range exist
+        expected_count = end_line - start_line + 1
+        query = from l in Line,
+          where: l.collection_id == ^collection_id and
+                 l.line_number >= ^start_line and
+                 l.line_number <= ^end_line,
+          select: count()
+
+        case Repo.one(query) do
+          ^expected_count -> changeset
+          actual_count ->
+            add_error(changeset, :base,
+              "not all lines in range exist (expected #{expected_count}, found #{actual_count})")
+        end
       _ -> changeset
     end
   end
 
-  # Validates the length of the note field
-  defp validate_note_length(changeset) do
-    changeset
-    |> validate_length(:note,
-      min: 1,
-      max: 10_000,
-      message: "must be between 1 and 10,000 characters"
-    )
-  end
-
-  defp put_line_associations(changeset, %{line_ids: line_ids}) when is_list(line_ids) do
-    put_assoc(changeset, :chunk_lines, Enum.map(line_ids, &%{line_id: &1}))
-  end
-  defp put_line_associations(changeset, %{"line_ids" => line_ids}) when is_list(line_ids) do
-    put_assoc(changeset, :chunk_lines, Enum.map(line_ids, &%{line_id: &1}))
-  end
-  defp put_line_associations(changeset, _), do: changeset
-
-  @doc """
-  Returns all chunks in a collection, sorted by the minimum line number in each chunk.
-  """
   def ordered_by_line_number(query \\ __MODULE__) do
-    from c in query,
-      join: cl in assoc(c, :chunk_lines),
-      join: l in assoc(cl, :line),
-      group_by: c.id,
-      order_by: min(l.line_number)
+    from c in query, order_by: c.start_line
   end
-
-
 end

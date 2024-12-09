@@ -5,11 +5,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :mode, :string, default: "read-only"
   attr :editing, :any, default: nil
   attr :selection, :any, default: nil
-  attr :active_chunk, :any, default: nil
-
 
   attr :lines, :list, required: true
-  attr :chunks, :list, required: true
 
   slot :col, required: true do
     attr :label, :string
@@ -19,7 +16,16 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
 
   def anno_grid(assigns) do
-    chunk_groups = group_lines_by_chunks(assigns.lines, assigns.chunks)
+    # Logger.info("check lines: #{inspect assigns.lines}")
+    # Get unique chunks from lines, maintaining order
+    chunks = assigns.lines
+    |> Enum.map(& &1.chunk)
+    |> Enum.reject(&is_nil/1)
+        # |> IO.inspect(label: "chunks before uniq_by")
+    |> Enum.uniq_by(& &1.id)
+
+
+    chunk_groups = group_lines_by_chunks(assigns.lines, chunks)
     assigns = assign(assigns, :chunk_groups, chunk_groups)
     ~H"""
     <div class="w-full grid grid-cols-[min-content_min-content_1fr_1fr] items-start rounded-lg border"
@@ -75,8 +81,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 >
                 <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
                   <.editor
-                    group={{chunk, lines}}
-                    col={col}
                     row_index={row_index}
                     col_index={col_index}
                     edit_text={get_edit_text(col[:name], {chunk, lines}, lines)}
@@ -88,7 +92,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                     col_index={to_string(col_index)}
                     chunk={chunk}
                     lines={lines}
-                    col_name={col[:name]}
                   />
                 <% end %>
               </div>
@@ -150,41 +153,18 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
   defp get_edit_text(_, _, _), do: ""
 
-  # Group lines into chunks, including uncategorized lines in their own group
   defp group_lines_by_chunks(lines, chunks) do
-    # Create a map of line_id to chunk
-    chunk_map = chunks
-    |> Enum.reduce(%{}, fn chunk, acc ->
-      line_ids = chunk.chunk_lines |> Enum.map(& &1.line_id)
-      Enum.reduce(line_ids, acc, fn line_id, inner_acc ->
-        Map.put(inner_acc, line_id, chunk)
-      end)
+    # Create groups based on chunk_id
+    line_groups = Enum.group_by(lines, & &1.chunk_id)
+    # Map chunks to their lines, preserving chunk order
+    chunks
+    |> Enum.map(fn chunk ->
+      {chunk, Map.get(line_groups, chunk.id, [])}
     end)
-    # Group lines into chunks or create standalone groups
-    lines
-    |> Enum.chunk_while(
-      {nil, []},  # Initial accumulator: {current_chunk, current_lines}
-      fn line, {current_chunk, current_lines} = acc ->
-        line_chunk = Map.get(chunk_map, line.id)
-        cond do
-          # First line or continuing same chunk
-          current_chunk == nil or line_chunk == current_chunk ->
-            {:cont, {line_chunk, [line | current_lines]}}
-          # Found a new chunk, emit current group and start new one
-          true ->
-            {:cont, {current_chunk, Enum.reverse(current_lines)}, {line_chunk, [line]}}
-        end
-      end,
-      fn
-        {nil, []} -> {:cont, []}
-        {chunk, lines} -> {:cont, {chunk, Enum.reverse(lines)}, {nil, []}}
-      end
-    )
-    |> Enum.reject(fn {_chunk, lines} -> lines == [] end)  # Remove empty groups
     |> Enum.sort_by(fn {_chunk, lines} ->
       case lines do
-        [first | _] -> first.line_number
         [] -> 0
+        [first | _] -> first.line_number
       end
     end)
   end
@@ -215,8 +195,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
               role="presentation"
               phx-click={JS.focus(to: "#cell" <> @row_index <> @col_index)}
               phx-value-row={@row_index}
-              phx-value-col={@col_index}
-              tabindex="0" >
+              phx-value-col={@col_index}>
               <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
           </div>
         <% end %>
