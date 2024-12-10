@@ -5,7 +5,6 @@ defmodule AnnotatorWeb.TextAnnotator do
   import AnnotatorWeb.AnnotatorComponents
   require Logger
 
-
   def mount(%{"id" => id}, _session, socket) do
     case Lines.get_collection_with_lines(id) do
       nil ->
@@ -69,10 +68,10 @@ defmodule AnnotatorWeb.TextAnnotator do
     """
   end
 
-  def handle_event("start_edit", %{"row_index" => row_index_str, "col_index" => col_index_str}, socket) do
-
+  def handle_event("start_edit", %{"row_index" => row_index, "col_index" => col_index}, socket) do
     Logger.info("in start_edit handler")
-    Logger.info("row_index: #{row_index_str} is_binary(row_index_str)? #{is_binary(row_index_str)}")
+    row_index_str = ensure_string(row_index)
+    col_index_str = ensure_string(col_index)
     case col_index_str do
       # Content column
       "2" ->
@@ -194,6 +193,15 @@ defmodule AnnotatorWeb.TextAnnotator do
         {:noreply, socket
           |> put_flash(:error, error_to_string(reason))
           |> assign(selection: nil)}
+    end
+  end
+
+  defp ensure_string(value) do
+    if !is_binary(value) do
+      Logger.info("Converting numerical value to string.")
+      to_string(value)
+    else
+      value
     end
   end
 

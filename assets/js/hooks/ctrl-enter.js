@@ -2,7 +2,7 @@ export const CtrlEnter = {
     mounted() {
         this.el.focus();
         this.el.setSelectionRange(-1, -1);
-        this.el.addEventListener('keydown', (e) => {
+        this.el.addEventListener('keyup', (e) => {
             if (e.key === 'Tab') {
                 e.preventDefault();
                 var start = this.el.selectionStart;
@@ -28,6 +28,12 @@ export const CtrlEnter = {
                     const rowIndex = this.el.dataset.rowIndex;
                     this.pushEvent('delete_line');
                 }
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                const cell = this.el.closest('[role="gridcell"]');
+                this.pushEvent("cancel_edit");
+                cell.focus();
             }
         })
       }

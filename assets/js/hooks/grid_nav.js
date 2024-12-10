@@ -1,307 +1,312 @@
 export const GridNav = {
+  // this.el is the whole grid; the element with id annotated-content.
+  // this JS hook handles interactions with that grid when there's no
+  // editor component open in it.
+
   mounted() {
-
-    this.mode = this.el.dataset.mode;
-    this.isSelecting = false;
-    this.selectionStart = null;
-    this.currentLine = null;
-    this.lineNumbers = document.querySelectorAll('[data-line-number]');
-    this.lineCount = this.lineNumbers.length;
-
-    this.handlekeyup = (e) => {
-
-      // Escape should work during editing, too (to cancel editing).
-      this.escapeKey(e.key);
-
-      // Handle navigation and line chunking when not editing
-      if (this.isEditing()) return;
-
-      e.preventDefault();
-
-      if (this.isSelecting) {
-        this.chunkSelection(e);
-      }
-
-      // Handle Enter to start editing, or to enter the grid nav if the parent
-      // tabbable element is selected
-      this.enterKey(e.key);
-
-      // Navigate grid cells with arrow keys
-      if (!this.isSelecting) {
-        this.arrowNav(e.key);
-      }
+    this.config = {
+      mode: this.el.dataset.mode,
+      lineNumbers: document.querySelectorAll('[data-line-number]'),
+      lineCount: document.querySelectorAll('[data-line-number]').length,
+      maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
+      maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
     };
 
-    this.handlemousedown = (e) => {
+    console.log("maxRow: "+ this.config.maxRow + "; maxCol: " + this.config.maxCol);
 
-      if (e.target.closest(".line-number")) {
-        console.log("set this.currentRow, this.currentCol to " + e.target.closest(".line-number").parentElement.dataset.rowIndex + ", " + e.target.closest(".line-number").parentElement.dataset.colIndex);
-        this.currentRow = e.target.closest(".line-number").parentElement.dataset.rowIndex;
-        this.currentCol = e.target.closest(".line-number").parentElement.dataset.colIndex;
-        console.log("mousedown at " + e.target.closest(".line-number").innerText);
-        this.isSelecting = true;
-        this.selectionStart = Number(e.target.closest(".line-number").innerText);
-        this.currentLine = this.selectionStart;
-        console.log("on mousedown, changed this.selectionStart to " + this.selectionStart);
-        console.log("also, typeof this.selectionStart is " + typeof(this.selectionStart))
-        this.el.removeEventListener('mousedown', this.handlemousedown);
-        this.el.addEventListener('mouseover', this.handlemouseover);
-        this.el.addEventListener('mouseup', this.handlemouseup);
-        this.el.addEventListener('mouseleave', this.handlemouseleave);
-      }
+    this.state = {
+      isLineSelecting: false,
+      firstSelectedLine: null,
+      currentLine:null,
+      currentRow: null,
+      currentCol: null
+    }
 
+    // Bind event handlers
+    this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.handleMouseDown = this.handleMouseDown.bind(this);
+    this.handleMouseOver = this.handleMouseOver.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
+
+    this.el.addEventListener('keyup', this.handleKeyUp);
+    this.el.addEventListener('mousedown', this.handleMouseDown);
+    this.el.addEventListener('mouseup', this.handleMouseUp);
+  },
+
+
+  getCellAt(rowIndex, colIndex) {
+    const element = document.querySelector(`[data-col-index="${colIndex}"][data-row-index="${rowIndex}"]`);
+    if (element) {
+        return element;
+    } else {
+        console.warn(`Element with data-col-index=${colIndex} and data-row-index=${rowIndex} not found.`);
+    }
+    return;
+  },
+
+  isEditing() {
+    return this.el.querySelector('textarea') !== null;
+  },
+
+  startEdit(row, col) {
+    // console.log("this.startEdit invoked with " + row + ", " + col)
+    this.pushEvent("start_edit", {
+      row_index: row,
+      col_index: col
+    });
+    return
+  },
+
+  focusCell(row, col) {
+    // console.log("this.focusCell: row, col: " + row + ", " + col)    
+    const targetCell = this.getCellAt(row, col);
+    // this.state.currentRow = row;
+    // this.state.currentCol = col;
+    if (targetCell) targetCell.focus();
+  },
+
+  handleArrowNav(key) {
+    const directions = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1]
     };
+
+    if (!directions[key]) return;
+    const cellRow = Number(document.activeElement.dataset.rowIndex);
+    const cellCol = Number(document.activeElement.dataset.colIndex);
+    // console.log("[cellRow, cellCol]: " + [cellRow, cellCol])    
+    const [rowDelta, colDelta] = directions[key];
+    const newRow = Math.max(0, Math.min(this.config.maxRow, cellRow + rowDelta));
+    const newCol = Math.max(0, Math.min(this.config.maxCol, cellCol + colDelta));
+    this.state.currentRow = newRow;
+    this.state.currentCol = newCol;
+    console.log("Arrow to " + newRow + ", " + newCol);
+    this.focusCell(newRow, newCol);
+  },
+
+  selectionMode(lineNumber) {
+    // Enter selecting mode; don't start a selection
+    this.state.isLineSelecting = true;
+    this.state.currentLine = lineNumber;
+  },
+
+  selectionStart(lineNumber) {
+    console.log("Starting selection at line " + lineNumber);
+
+    this.selectionMode(lineNumber);
+    this.state.firstSelectedLine = lineNumber;
     
-    this.handlemouseover = (e) => {
-      e.preventDefault();
+    this.pushEvent('start_selection', {
+      start: lineNumber,
+      end: lineNumber
+    });
+  },
+    
+  selectionUpdate(start, end) {
+    this.pushEvent('update_selection', { start, end });
+  },
 
-      if (e.target.closest(".line-number")) {
-        e.preventDefault();
-        const nowline = e.target.closest(".line-number");
-        console.log("handlemouseover");
-        // console.log("mouseover at " + e.target.closest(".line-number").innerText);
-        nowline.classList.remove("selectedline"); // in case I'm duplicating this class
-        const linediff = nowline.innerText - this.currentLine;
-        console.log("linediff: " + linediff );
-        if (linediff > 0) {
-          console.log("linediff is " + linediff + ". Adding class selectedline.")
-          nowline.classList.add("selectedline");
-        } else if (linediff < 0) {
-          console.log("linediff is " + linediff + ". Removing class selectedline.")
-          e.target.closest(".line-number").classList.remove("selectedline");
-        }
-        this.currentLine = Number(nowline.innerText);
+  selectionClear() {
+    // console.log("selectionClear invoked; setting isLineSelecting to false")
+    this.state.isLineSelecting = false;
+    this.state.firstSelectedLine = null;
+    this.state.currentLine = null;
+    
+    document.querySelectorAll('.selectedline')
+      .forEach(el => el.classList.remove('selectedline'));
+    
+    this.pushEvent('cancel_selection', {});
+  },
 
-        console.log("mouseover at " + e.target.closest(".line-number").innerText + ". this.currentLine updated to " + this.currentLine)
-        console.log("also, typeof this.currentLine is now" + typeof(this.currentLine))
-        // e.target.addEventListener('mouseleave', this.handlemouseleave, { once: true });
-      }
-    };
+  submitChunk() {
+    console.log("submitChunk: pushing rechunk event")
+    this.pushEvent("rechunk");
+  },
 
-    this.handlemouseup = (e) => {
-      // if (e.target.closest(".line-number")) {
-        console.log("mouseup is updating selection. this.selectionStart is type " + typeof(this.selectionStart) + " and this.currentLine is type " + typeof(this.currentLine))
-        this.pushEvent("update_selection", {
-          start: this.selectionStart,
-          end: this.currentLine
+  handleChunkSelection(key) {
+    lineNum = document.activeElement.dataset.lineNumber;
+    if (!lineNum) {
+      console.log("handleChunkSelection couldn't get a line number from the element")
+      return;
+    }
+    if (key === ' ') {
+      console.log("space key in chunkSelection")
+      if (this.state.firstSelectedLine == null) {
+        // Start new selection
+        this.state.firstSelectedLine = this.state.currentLine;
+        console.log("starting selection at line " + this.state.currentLine)
+        this.pushEvent("start_selection", {
+          start: this.state.currentLine,
+          end: this.state.currentLine
         });
-        this.submitChunk();
-        this.focusCell();
-
-        this.selectionStart = null;
-        this.el.removeEventListener('mouseup', this.handlemouseup);
-        this.el.removeEventListener('mouseover', this.handlemouseover);
-        this.el.removeEventListener('mouseleave', this.handlemouseleave);
-      // }
-    };
-
-    this.handlemouseleave = (e) => {
-      if (e.target.id == "annotated-content") {
-        console.log("mouseleave of #annotated-content element");
-        this.clearSelection();
-      }
-    };
-
-    this.arrowNav = (key) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-        this.currentRow = document.activeElement.dataset.rowIndex;
-        this.currentCol = document.activeElement.dataset.colIndex;
-  
-        const rows = Array.from(this.el.querySelectorAll('[role="row"]'));
-        const cellRow = Number(this.currentRow);
-        const cellCol = Number(this.currentCol);
-        const maxRow = rows.length - 2; // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
-        const maxCol = this.el.querySelectorAll('[role="columnheader"]').length - 1;
-        // console.log("maxRow: "+ maxRow + "; maxCol: " + maxCol);
-        
-        switch (key) {
-          case 'ArrowUp':
-            this.currentRow = Math.max(0, cellRow - 1);
-            console.log("ArrowUp to " + this.currentRow + ", " + this.currentCol);
-            this.focusCell();
-            break;
-          case 'ArrowDown':
-            this.currentRow = Math.min(maxRow, cellRow + 1);
-            console.log("ArrowDown to " + this.currentRow + ", " + this.currentCol);
-            this.focusCell();
-            break;
-          case 'ArrowLeft':
-            this.currentCol = Math.max(0, cellCol - 1);
-            console.log("ArrowLeft to " + this.currentRow + ", " + this.currentCol);
-            this.focusCell();
-            break;
-          case 'ArrowRight':
-            console.log("Right arrow nav; currentCol is " + this.currentCol + " and maxCol is " + maxCol);
-            this.currentCol = Math.min(maxCol, cellCol + 1);
-            console.log("ArrowRight to " + this.currentRow + ", " + this.currentCol);
-            this.focusCell();
-            break;
-        }
-      }
-    }
-
-    this.escapeKey = (key) => {
-      if (key === 'Escape') {
-        if (this.isSelecting) {
-          console.log("escapeKey: this.isSelecting was true")
-          console.log("this.currentRow and this.currentCol are " + this.currentRow + ", " + this.currentCol)
-
-          this.clearSelection();
-          this.focusCell();
-        } else if (this.isEditing()) {
-          console.log("this.isEditing(): " + this.isEditing())
-          this.pushEvent("cancel_edit");
-          this.focusCell();
-        } else {
-          document.getElementById("annotated-content").focus();
-        }
-        return;
-      }
-    }
-
-    this.enterKey = (key) => {
-      if (key === 'Enter' && !this.isEditing() && this.mode == "author") {
-        console.log("grid_nav hook detected an Enter key")
-        if (document.activeElement.id == "annotated-content") {
-          this.currentRow = 0;
-          this.currentCol = 2;
-          this.focusCell();
-        } 
-        else { 
-          // console.log("classes: " + document.activeElement.classList);
-          if (document.activeElement.classList.contains("editable")) {
-            this.startEdit();
-          } 
-          else if (document.activeElement.dataset.col == "line-num") {
-              console.log("enter key needs to activate line selection")
-              this.startSelect();
-          }
-          else if (this.isSelecting == true) {
-            console.log("gonna submitChunk");
-            this.submitChunk();
-          }
-        }  
-      }
-    }
-      
-
-    this.chunkSelection = (e) => {
-      
-      // Arrow through lines
-      if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
-        console.log("this.currentLine is " + this.currentLine + " and this.selectionStart is " + this.selectionStart);
-        console.log("this.lineNumbers[i]: " + this.lineNumbers[this.currentLine].innerText);
-        // Find next/previous line number element
-        const nextLineNum = e.key === 'ArrowUp' ? Math.max(this.currentLine - 1, this.selectionStart) : Math.min(this.currentLine + 1, this.lineCount);
-        console.log("nextLineNum: " + nextLineNum);
-        const nextEl = this.lineNumbers[nextLineNum];
-        console.log("nextEl: " + nextEl.innerText)
-        nextEl.focus();
-        this.currentLine = nextLineNum;
-        // Also update gridcell
-        const gridCell = nextEl.parentElement;
-        console.log("gridCell: " + gridCell)
-        this.currentRow = gridCell.dataset.rowIndex;
-        this.currentCol = gridCell.dataset.colIndex;
-        console.log("Updated this.currentRow and this.currentCol to " + this.currentRow + ", " + this.currentCol)
-        // Change selection if shift key was down
-        // const lineNumber = parseInt(nextEl.dataset.lineNumber);
-        if (e.shiftKey && this.selectionStart !== null) {
-          console.log("shift-arrow is updating selection. this.selectionStart is type " + typeof(this.selectionStart) + " and nextLineNum is type " + typeof(nextLineNum))
-          this.pushEvent("update_selection", {
-            start: this.selectionStart,
-            end: nextLineNum
-          });
-        }
-      }
-      if (e.key === ' ' && this.isSelecting) {
-        console.log("space key in chunkSelection")
-        if (!this.selectionStart) {
-          // Start new selection
-          this.selectionStart = this.currentLine;
-          console.log("starting selection at line " + this.currentLine)
-          this.pushEvent("start_selection", {
-            start: this.currentLine,
-            end: this.currentLine
-          });
-        }
-      }
-    }
-
-    this.clearSelection = () => {
-      console.log("clearing selection")
-      this.selectionStart = null;
-      this.currentLine = null;
-      this.isSelecting = false;
-      (document.querySelectorAll(".selectedline")).forEach((selectedline) => selectedline.classList.remove("selectedline"));
-      this.pushEvent("cancel_selection", {});
-      this.el.addEventListener('mousedown', this.handlemousedown);
-    }
-
-    this.startEdit = () => {
-      console.log("this.startEdit invoked")
-      this.pushEvent("start_edit", {
-        row_index: this.currentRow,
-        col_index: this.currentCol
-      });
-      return
-    }
-    
-    this.startSelect = () => {
-      console.log("this.startSelect invoked with enter key at row " + this.currentRow + ", col " + this.currentCol);
-      this.isSelecting = true;
-      lineNumberEl = document.activeElement.firstElementChild;
-        if (!lineNumberEl) return;
-        lineNumberEl.focus();
-        // e.target.closest('[data-line-number]');
-        lineNumber = parseInt(lineNumberEl.dataset.lineNumber);
-        this.currentLine = lineNumber;
-        console.log("lineNumberEl line number: " + lineNumberEl.dataset.lineNumber);
-    }
-
-    this.submitChunk = () => {
-      console.log("submitChunk: pushing rechunk event")
-      this.pushEvent("rechunk");
-      this.clearSelection();
-    }
-
-    this.isEditing = () => {
-      return this.el.querySelector('textarea') !== null;
-    };
-
-    this.getCellAt = (rowIndex, colIndex) => {
-      const element = document.querySelector(`[data-col-index="${colIndex}"][data-row-index="${rowIndex}"]`);
-      if (element) {
-          return element;
       } else {
-          console.warn(`Element with data-col-index=${colIndex} and data-row-index=${rowIndex} not found.`);
+        console.log("firstSelectedLine is not null so don't do anything")
       }
       return;
-    };
+    } else if (!['ArrowUp', 'ArrowDown'].includes(key)) {
+        return;
+    }
+    // At this point, key must be arrow up or down
+    // If selection is started, don't need arrow keys to move without selecting
 
-    this.focusCell = () =>  {
-      console.log("this.focusCell: this.currentRow, this.currentCol: " + this.currentRow + ", " + this.currentCol)
-      const targetCell = this.getCellAt(this.currentRow, this.currentCol);
-        targetCell.focus();
-    };
-    this.getCurrentLineRange = () => {
-      const cell = this.getCellAt(this.currentRow, 2);
-      if (!cell) return null;
+    const nextLine = key === 'ArrowUp' ? Math.max(this.state.currentLine - 1, this.state.firstSelectedLine) : Math.min(this.state.currentLine + 1, this.config.lineCount - 1);
+    this.state.currentLine = nextLine;
+    const nextEl = this.config.lineNumbers[nextLine];
+    console.log("Arrow to line" + nextEl.innerText + "; this.state.firstSelectedLine is " + this.state.firstSelectedLine)
+    nextEl?.focus();
 
-      return {
-        first: parseInt(cell.dataset.firstLine),
-        last: parseInt(cell.dataset.lastLine)
-      };
-    };
+    if (this.state.firstSelectedLine !== null) {
+      console.log("Updating selection by arrow keys. this.state.firstSelectedLine is " + this.state.firstSelectedLine + ", type " + typeof(this.state.firstSelectedLine) + " and last line selected is " + nextLine + ", type " + typeof(nextLine))
+
+      this.selectionUpdate(this.state.firstSelectedLine, nextLine);
+    }
+  },
+
+  // Event handlers
+  handleKeyUp(e) {
+    // console.log("handleKeyUp triggered with key " + e.key)
+    if (this.isEditing()) return;
     
-    this.el.addEventListener('keyup', this.handlekeyup);
-    this.el.addEventListener('mousedown', this.handlemousedown);
+    e.preventDefault();
+
+    const handlers = {
+      Escape: () => this.handleEscape(),
+      Enter: () => this.handleEnter(),
+      default: () => {
+        if (this.state.isLineSelecting) {
+          this.handleChunkSelection(e.key, e.shiftKey);
+        } else {
+          this.handleArrowNav(e.key);
+        }
+      }
+    };
+
+    (handlers[e.key] || handlers.default)();
+  },
+
+  handleMouseDown(e) {
+    const lineNumber = e.target.closest('.line-number');
+    if (this.state.isLineSelecting && lineNumber == null) {
+      console.log("got a mousedown outside of a line-number element");
+      this.selectionClear();
+      return;
+    } 
+    else if (lineNumber !== null) {
+      e.preventDefault();
+    
+      console.log("mousedown at " + lineNumber);
+
+      const cell = lineNumber.parentElement;
+      this.state.currentRow = cell.dataset.rowIndex;
+      this.state.currentCol = cell.dataset.colIndex;
+      console.log("mousedown updated this.state.currentRow, this.state.currentCol to " + this.state.currentRow + ", " + this.state.currentCol);
+
+      this.selectionStart(Number(lineNumber.innerText));
+      console.log("on mousedown, changed this.state.firstSelectedLine to " + this.state.firstSelectedLine);
+      console.log("also, typeof this.state.firstSelectedLine is " + typeof(this.state.firstSelectedLine));
+      // this.setupDragHandlers();
+      this.el.addEventListener('mouseover', this.handleMouseOver);
+    };
+  },
+
+  handleMouseOver(e) {
+    const lineNumber = e.target.closest('.line-number');
+    if (!lineNumber) return;
+
+    e.preventDefault();
+    const linenumber = e.target.closest(".line-number");
+    console.log("handleMouseOver");
+    // console.log("mouseover at " + e.target.closest(".line-number").innerText);
+    linenumber.classList.remove("selectedline"); // in case I'm duplicating this class
+    const linediff = linenumber.innerText - this.state.currentLine;
+    console.log("linediff: " + linediff );
+    if (linediff > 0) {
+      console.log("linediff is " + linediff + ". Adding class selectedline.")
+      linenumber.classList.add("selectedline");
+    } else if (linediff < 0) {
+      console.log("linediff is " + linediff + ". Removing class selectedline.")
+      linenumber.classList.remove("selectedline");
+    }
+    this.state.currentLine = Number(linenumber.innerText);
+
+    console.log("mouseover at " + linenumber.innerText + ". this.state.currentLine updated to " + this.state.currentLine)
+    console.log("also, typeof this.state.currentLine is now" + typeof(this.state.currentLine))
+  },
+
+  handleMouseUp(e) {
+    console.log("mouseup");
+    if (!e.target.closest(".line-number")) {
+      console.log("got a mouseup outside of a line-number element");
+      // this.el.addEventListener('mouseup', this.handleMouseUp, {once: true});
+      this.selectionClear();
+      this.el.removeEventListener('mouseover', this.handleMouseOver);
+      return;
+    }
+    console.log("mouseup is updating selection. this.state.firstSelectedLine is type " + typeof(this.state.firstSelectedLine) + " and this.state.currentLine is type " + typeof(this.state.currentLine))
+    this.selectionUpdate(this.state.firstSelectedLine, this.state.currentLine);
+    
+    this.submitChunk();
+    this.focusCell(0,1);
+    this.selectionClear();
+    this.el.removeEventListener('mouseover', this.handleMouseOver);
+  },
+
+  handleEscape() {
+    if (this.state.isLineSelecting) {
+      console.log("escapeKey: this.state.isLineSelecting was true")
+      console.log("this.state.currentRow and this.state.currentCol are " + this.state.currentRow + ", " + this.state.currentCol)
+
+      this.selectionClear();
+      this.focusCell(0,1);
+    } else {
+      console.log("escape -- focus whole grid");
+      this.el.focus();
+    }
+    return;
+  },
+
+  handleEnter() {
+    if (this.config.mode == "author") {
+      activeEl = document.activeElement;
+      if (activeEl == this.el) {
+        // this.state.currentRow = 0;
+        // this.state.currentCol = 1;
+        this.focusCell(0,1);
+      } 
+      else { 
+        // console.log("classes: " + document.activeElement.classList);
+        if (activeEl.classList.contains("editable")) {
+          // console.log("activeEl.dataset.rowIndex: " + Number(activeEl.dataset.rowIndex))
+          const cellRow = Number(activeEl.dataset.rowIndex);
+          const cellCol = Number(activeEl.dataset.colIndex);
+          this.startEdit(cellRow, cellCol);
+        } 
+        else if (activeEl.dataset.col == "line-num") {
+          console.log("Enter: activate line selection");
+          console.log("this.state.firstSelectedLine: " + this.state.firstSelectedLine)
+
+          lineNumberEl = activeEl.firstElementChild;
+          if (!lineNumberEl) return;
+          lineNumberEl.focus();
+          lineNumber = parseInt(lineNumberEl.dataset.lineNumber);
+          this.state.currentLine = Number(lineNumber);
+          this.selectionMode(lineNumber);
+        }
+        else if (this.state.isLineSelecting == true) {
+          this.submitChunk();
+          this.selectionClear();
+        }
+      }  
+    }
   },
 
   destroyed() {
-    this.el.removeEventListener('keyup', this.handlekeyup);
-    this.el.removeEventListener('mousedown', this.handlemousedown);
-    this.el.removeEventListener('mouseleave', this.handlemouseleave);
+    this.el.removeEventListener('keyup', this.handleKeyUp);
+    this.el.removeEventListener('mousedown', this.handleMouseDown);
+    this.el.removeEventListener('mouseup', this.handleMouseUp);
+    this.el.removeEventListener('mouseover', this.handleMouseOver);
 
   }
 };
