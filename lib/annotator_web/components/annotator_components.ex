@@ -61,7 +61,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             <%= for {col, col_index} <- Enum.with_index(@col) do %>
               <div role="gridcell"
                 tabindex="-1"
-                id={"cell" <> to_string(row_index) <> to_string(col_index)}
+                id={"cell-" <> to_string(row_index) <> "-" <> to_string(col_index)}
                 data-col={col[:name]}
                 data-col-index={col_index}
                 data-row-index={row_index}
@@ -179,8 +179,10 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     ~H"""
     <%= case @col[:name] do %>
       <% "line-num" -> %>
-        <%= for line <- @lines do %>
-          <div class="line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"
+        <%= for line <- Enum.sort(@lines, &(&1.line_number <= &2.line_number)) do %>
+          <% line_num = line.line_number %>
+          <div id={"line-" <> to_string(line_num)}
+              class="line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"
               role="button"
               tabindex="-1"
               data-line-number={line.line_number}
@@ -193,7 +195,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <%= for line <- @lines do %>
           <div class="py-1 hover:bg-zinc-100/50 self-start"
               role="presentation"
-              phx-click={JS.focus(to: "#cell" <> @row_index <> @col_index)}
+              phx-click={JS.focus(to: "#cell-" <> @row_index <> "-" <> @col_index)}
               phx-value-row={@row_index}
               phx-value-col={@col_index}>
               <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>

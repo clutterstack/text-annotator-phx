@@ -175,18 +175,30 @@ defmodule AnnotatorWeb.TextAnnotator do
 
   def handle_event("rechunk", %{}, socket) do
     Logger.info("socket.assigns.selection: " <> inspect socket.assigns.selection)
+
     %{start_line: chunk_start, end_line: chunk_end} = socket.assigns.selection
     collection_id = socket.assigns.collection.id
+
     Logger.info("are chunk_start and chunk_end binaries? chunk_start: " <> (inspect is_binary(chunk_start)) <> "; " <> (inspect is_binary(chunk_end)))
+
+    # Log before state
+    collection_before = Lines.get_collection_with_lines(collection_id)
+    Logger.info("Before rechunk - chunks: #{inspect(Enum.map(collection_before.lines, & &1.chunk_id))}")
+    Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
+
 
     case Lines.ensure_chunk(collection_id, chunk_start, chunk_end) do
       {:ok, _} ->
+        # Get collection fresh from the database
         collection = Lines.get_collection_with_lines(collection_id)
+        Logger.info("After rechunk - line count: #{length(collection.lines)}")
+        Logger.info("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
         {:noreply, socket
           |> assign(
             collection: collection,
             lines: collection.lines,
-            selection: nil
+            selection: nil,
+            editing: nil # Update this just to be on the safe side
           )}
 
       {:error, reason} ->

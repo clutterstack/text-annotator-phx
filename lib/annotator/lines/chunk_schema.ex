@@ -23,7 +23,7 @@ defmodule Annotator.Lines.Chunk do
     |> validate_number(:start_line, greater_than_or_equal_to: 0)
     |> validate_number(:end_line, greater_than_or_equal_to: 0)
     |> validate_end_line_after_start_line()
-    |> maybe_validate_no_overlap()
+    # |> maybe_validate_no_overlap()
     |> maybe_validate_lines_exist()
   end
 

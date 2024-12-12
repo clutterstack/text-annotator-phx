@@ -87,107 +87,227 @@ defmodule Annotator.Lines do
   splitting or merging of existing chunks.
   """
   def ensure_chunk(collection_id, start_line, end_line) do
-    Logger.info("Starting ensure_chunk with start_line: #{start_line}, end_line: #{end_line}")
+    Logger.info("Starting ensure_chunk with start_line: #{inspect(start_line)}, end_line: #{inspect(end_line)}")
 
-    Repo.transaction(fn ->
-      # Create a temporary chunk
-      {:ok, temp_chunk} = %Chunk{}
-      |> Chunk.changeset(%{
+    # First validate basic params
+    changeset = %Chunk{}
+    |> Chunk.changeset(
+      %{
         "collection_id" => collection_id,
-        "start_line" => 999999999,
-        "end_line" => 999999999,
-        "note" => "",
-        "temporary" => true
+        "start_line" => start_line,
+        "end_line" => end_line,
+        "note" => ""
       })
-      |> Repo.insert()
 
-      Logger.info("Created temp chunk: #{inspect(temp_chunk)}")
+    if changeset.valid? do
+      validated_start = Ecto.Changeset.get_change(changeset, :start_line)
+      validated_end = Ecto.Changeset.get_change(changeset, :end_line)
+      validated_collection_id = Ecto.Changeset.get_change(changeset, :collection_id)
 
-      # Find affected chunks
-      affected_chunks = Repo.all(
-        from c in Chunk,
-        where: c.collection_id == ^collection_id
-          and not is_nil(c.id)
-          and c.id != ^temp_chunk.id
-          and ((c.start_line >= ^start_line and c.start_line <= ^end_line) or
-               (c.end_line >= ^start_line and c.end_line <= ^end_line) or
-               (c.start_line <= ^start_line and c.end_line >= ^end_line)),
-        order_by: c.start_line
-      )
+      Repo.transaction(fn ->
+        case find_affected_chunks(validated_collection_id, validated_start, validated_end) do
+          {:ok, []} ->
+            # No affected chunks - create new one
+            create_chunk(validated_collection_id, validated_start, validated_end, "")
 
-      Logger.info("Found affected chunks: #{inspect(affected_chunks)}")
+          {:ok, [single_chunk]} ->
+            # Only one chunk affected - modify it directly
+            reorganize_single_chunk(single_chunk, validated_start, validated_end)
 
-      # Move all affected lines to temporary chunk first
-      Enum.each(affected_chunks, fn chunk ->
-        # Move lines to temp chunk
-        {count, _} = from(l in Line,
-          where: l.chunk_id == ^chunk.id
-        )
-        |> Repo.update_all(set: [chunk_id: temp_chunk.id])
+          {:ok, [working_chunk | other_chunks]} ->
+            # Multiple chunks - use first as working chunk
+            reorganize_multiple_chunks(working_chunk, other_chunks, validated_start, validated_end)
 
-        Logger.info("Moved #{count} lines from chunk #{chunk.id} to temp chunk")
-
-        # Now it's safe to delete the chunk
-        Repo.delete!(chunk)
-        Logger.info("Deleted chunk #{chunk.id}")
-      end)
-
-      # Create new chunks for before/after sections if needed
-      affected_chunks
-      |> Enum.each(fn chunk ->
-        if chunk.start_line < start_line do
-          {:ok, before_chunk} = create_chunk(collection_id, chunk.start_line, start_line - 1, chunk.note)
-          Logger.info("Created before chunk: #{inspect(before_chunk)}")
-        end
-
-        if chunk.end_line > end_line do
-          {:ok, after_chunk} = create_chunk(collection_id, end_line + 1, chunk.end_line, chunk.note)
-          Logger.info("Created after chunk: #{inspect(after_chunk)}")
+          {:error, _} = error -> Repo.rollback(error)
         end
       end)
-
-      # Create new target chunk
-      {:ok, new_chunk} = create_chunk(collection_id, start_line, end_line, "")
-      Logger.info("Created new target chunk: #{inspect(new_chunk)}")
-
-      # Make sure all lines in range are assigned to new chunk
-      {count, _} = from(l in Line,
-        where: l.collection_id == ^collection_id
-          and l.line_number >= ^start_line
-          and l.line_number <= ^end_line
-      )
-      |> Repo.update_all(set: [chunk_id: new_chunk.id])
-
-      Logger.info("Assigned #{count} lines to new chunk")
-
-      # Delete temporary chunk
-      Repo.delete!(temp_chunk)
-      Logger.info("Deleted temporary chunk")
-
-      {:ok, new_chunk}
-    end)
+    else
+      {:error, changeset}
+    end
   end
 
+
+
   defp create_chunk(collection_id, start_line, end_line, note) do
-    chunk = %Chunk{}
+    %Chunk{}
     |> Chunk.changeset(%{
       "collection_id" => collection_id,
       "start_line" => start_line,
       "end_line" => end_line,
-      "note" => note
+      "note" => note || ""
     })
-    |> Repo.insert!()
-
-    # Move lines to this chunk
-    {_, _} = from(l in Line,
-      where: l.collection_id == ^collection_id
-        and l.line_number >= ^start_line
-        and l.line_number <= ^end_line
-    )
-    |> Repo.update_all(set: [chunk_id: chunk.id])
-
-    {:ok, chunk}
+    |> Repo.insert()
+    |> case do
+      {:ok, chunk} = result ->
+        Logger.info("Created chunk: #{inspect(chunk)}")
+        result
+      {:error, changeset} ->
+        Logger.error("Failed to create chunk: #{inspect(changeset.errors)}")
+        {:error, changeset}
+    end
   end
+
+  defp find_affected_chunks(collection_id, start_line, end_line) do
+    chunks = Repo.all(
+      from c in Chunk,
+      where: c.collection_id == ^collection_id
+        # and not is_nil(c.id)
+        # and c.id != ^temp_chunk.id
+        and not is_nil(c.start_line)
+        and not is_nil(c.end_line),
+      order_by: c.start_line
+    )
+
+    affected = chunks
+    |> Enum.filter(&chunk_overlaps?(&1, start_line, end_line))
+    |> tap(fn chunks ->
+      Logger.info("Found affected chunks: #{inspect(chunks)}")
+    end)
+
+    {:ok, affected}
+  end
+
+  defp chunk_overlaps?(chunk, start_line, end_line) do
+    with true <- is_number(start_line),
+          true <- is_number(end_line),
+          true <- is_number(chunk.start_line),
+          true <- is_number(chunk.end_line) do
+      (chunk.start_line >= start_line and chunk.start_line <= end_line) or
+      (chunk.end_line >= start_line and chunk.end_line <= end_line) or
+      (chunk.start_line <= start_line and chunk.end_line >= end_line)
+    else
+      _ -> false
+    end
+  end
+
+  defp reorganize_single_chunk(chunk, new_start, new_end) do
+    # First move any lines that will end up in "before" chunk
+    if chunk.start_line < new_start do
+      {:ok, before_chunk} = create_chunk(chunk.collection_id, chunk.start_line, new_start - 1, chunk.note)
+
+      # Move lines to before chunk BEFORE changing any boundaries
+      {count, _} = from(l in Line,
+        where: l.chunk_id == ^chunk.id
+          and l.line_number >= ^chunk.start_line
+          and l.line_number < ^new_start
+      )
+      |> Repo.update_all(set: [chunk_id: before_chunk.id])
+
+      Logger.info("Moved #{count} lines to before chunk #{before_chunk.id}")
+    end
+
+    # Then move any lines that will end up in "after" chunk
+    if chunk.end_line > new_end do
+      {:ok, after_chunk} = create_chunk(chunk.collection_id, new_end + 1, chunk.end_line, chunk.note)
+
+      {count, _} = from(l in Line,
+        where: l.chunk_id == ^chunk.id
+          and l.line_number > ^new_end
+          and l.line_number <= ^chunk.end_line
+      )
+      |> Repo.update_all(set: [chunk_id: after_chunk.id])
+
+      Logger.info("Moved #{count} lines to after chunk #{after_chunk.id}")
+    end
+
+    # Now update the chunk boundaries since all lines are properly placed
+    {:ok, updated_chunk} = chunk
+      |> Chunk.changeset(%{"start_line" => new_start, "end_line" => new_end})
+      |> Repo.update()
+
+    # Verify no lines were orphaned
+    orphaned_count = Repo.one(from l in Line,
+      where: is_nil(l.chunk_id)
+        and l.collection_id == ^chunk.collection_id
+        and l.line_number >= ^chunk.start_line
+        and l.line_number <= ^chunk.end_line,
+      select: count())
+
+    if orphaned_count > 0 do
+      Logger.error("Found #{orphaned_count} orphaned lines after reorganizing single chunk")
+      raise "Lines became orphaned during chunk reorganization"
+    end
+
+    {:ok, updated_chunk}
+  end
+
+  defp reorganize_multiple_chunks(working_chunk, other_chunks, new_start, new_end) do
+  # First move any lines that will be in the "before" section
+  if working_chunk.start_line < new_start do
+    {:ok, before_chunk} = create_chunk(working_chunk.collection_id, working_chunk.start_line, new_start - 1, working_chunk.note)
+
+    {count, _} = from(l in Line,
+      where: l.chunk_id == ^working_chunk.id
+        and l.line_number >= ^working_chunk.start_line
+        and l.line_number < ^new_start
+    )
+    |> Repo.update_all(set: [chunk_id: before_chunk.id])
+
+    Logger.info("Moved #{count} lines to before chunk #{before_chunk.id}")
+  end
+
+  # Then move any lines that will be in the "after" section
+  if working_chunk.end_line > new_end do
+    {:ok, after_chunk} = create_chunk(working_chunk.collection_id, new_end + 1, working_chunk.end_line, working_chunk.note)
+
+    {count, _} = from(l in Line,
+      where: l.chunk_id == ^working_chunk.id
+        and l.line_number > ^new_end
+        and l.line_number <= ^working_chunk.end_line
+    )
+    |> Repo.update_all(set: [chunk_id: after_chunk.id])
+
+    Logger.info("Moved #{count} lines to after chunk #{after_chunk.id}")
+  end
+
+  # Move all lines from other chunks to working chunk BEFORE deleting them
+  Enum.each(other_chunks, fn chunk ->
+    {count, _} = from(l in Line,
+      where: l.chunk_id == ^chunk.id
+        and l.line_number >= ^new_start
+        and l.line_number <= ^new_end
+    )
+    |> Repo.update_all(set: [chunk_id: working_chunk.id])
+
+    Logger.info("Moved #{count} lines from chunk #{chunk.id} to working chunk")
+
+    # Now safe to delete the chunk
+    Repo.delete!(chunk)
+    Logger.info("Deleted chunk #{chunk.id}")
+  end)
+
+  # Finally update working chunk boundaries
+  {:ok, updated_chunk} = working_chunk
+    |> Chunk.changeset(%{"start_line" => new_start, "end_line" => new_end})
+    |> Repo.update()
+
+  # Verify no lines were orphaned
+  orphaned_count = Repo.one(from l in Line,
+    where: is_nil(l.chunk_id)
+      and l.collection_id == ^working_chunk.collection_id
+      and l.line_number >= ^new_start
+      and l.line_number <= ^new_end,
+    select: count())
+
+  if orphaned_count > 0 do
+    Logger.error("Found #{orphaned_count} orphaned lines after reorganizing multiple chunks")
+    raise "Lines became orphaned during chunk reorganization"
+  end
+
+  {:ok, updated_chunk}
+end
+
+  # defp create_chunk(collection_id, start_line, end_line, note) do
+  #   chunk = %Chunk{}
+  #   |> Chunk.changeset(%{
+  #     "collection_id" => collection_id,
+  #     "start_line" => start_line,
+  #     "end_line" => end_line,
+  #     "note" => note
+  #   })
+  #   |> Repo.insert!()
+
+  # end
 
   # @doc """
   # Creates a new chunk or updates existing one based on line range.
