@@ -22,11 +22,10 @@ export const GridNav = {
     this.el.addEventListener('mouseup', this.handleMouseUp);
   },
 
-  // updated() {
-  //   console.log("DOM refreshed by LiveView")
-  //   this.resetConfig();
-
-  // },
+  updated() {
+    console.log("DOM refreshed by LiveView")
+    // this.resetConfig();
+  },
 
   resetConfig() {
     console.log("before resetConfig(). this.config.lineCount = " + this.config.lineCount)
@@ -103,7 +102,7 @@ export const GridNav = {
   selectionStart(lineNumber) {
 
     this.state.firstSelectedLine = lineNumber;
-    console.log("selectionStart changed this.state.firstSelectedLine to " + this.state.firstSelectedLine + "with type " + typeof(this.state.firstSelectedLine));
+    console.log("selectionStart changed this.state.firstSelectedLine to " + this.state.firstSelectedLine + " with type " + typeof(this.state.firstSelectedLine));
 
     this.pushEvent('start_selection', {
       start: lineNumber,
@@ -242,7 +241,7 @@ if (nextEl) {
     }
     this.state.currentLine = thisLine;
 
-    console.log("mouseover at " + thisLine + ". this.state.currentLine updated to " + this.state.currentLine + "with type " + typeof(this.state.currentLine))
+    console.log("mouseover at " + thisLine + ". this.state.currentLine updated to " + this.state.currentLine + " with type " + typeof(this.state.currentLine))
   },
 
   handleMouseUp(e) {

@@ -1,7 +1,6 @@
 defmodule AnnotatorWeb.TextAnnotator do
   use AnnotatorWeb, :live_view
   alias Annotator.Lines
-  alias Annotator.Lines.Line
   import AnnotatorWeb.AnnotatorComponents
   require Logger
 
@@ -15,10 +14,16 @@ defmodule AnnotatorWeb.TextAnnotator do
           |> push_navigate(to: ~p"/collections")}
 
       collection ->
-        # Logger.info("in textannotator, check lines: #{inspect collection.lines}")
+        # Get unique chunks from lines, maintaining order
+        # chunks = get_collection_chunks(collection.lines)
+
+        # chunk_groups =
+        # May want mode to be an assign too...certainly if we're going to
+        # change it in the UI...though maybe we won't.
         {:ok, assign(socket,
           collection: collection,
-          lines: collection.lines,
+          # lines: collection.lines,
+          chunk_groups: get_chunk_groups(collection.lines),
           editing: nil,
           selection: nil
         )}
@@ -28,8 +33,8 @@ defmodule AnnotatorWeb.TextAnnotator do
   def mount(_params, _session, socket) do
     {:ok, assign(socket,
       collection: nil,
-      lines: [%Line{line_number: 0, content: ""}],
-      editing: nil,
+      # lines: [%Line{line_number: 0, content: ""}],
+      editing: [0,1],
       selection: nil,
       form: to_form(%{"name" => ""})
     )}
@@ -50,7 +55,7 @@ defmodule AnnotatorWeb.TextAnnotator do
       <div class="space-y-8 py-8">
         <.anno_grid
           mode="author"
-          lines={@lines}
+          chunk_groups={@chunk_groups}
           editing={@editing}
           selection={@selection}
         >
@@ -152,7 +157,7 @@ defmodule AnnotatorWeb.TextAnnotator do
 
             {:noreply, assign(socket,
               collection: collection,
-              lines: collection.lines,
+              # lines: collection.lines,
               editing: nil,
               # Clear selection if the deleted line was part of it
               selection: clear_selection_if_needed(socket.assigns.selection, line.id)
@@ -174,12 +179,12 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def handle_event("rechunk", %{}, socket) do
-    Logger.info("socket.assigns.selection: " <> inspect socket.assigns.selection)
+    Logger.info("socket.assigns.selection: #{inspect socket.assigns.selection}")
 
     %{start_line: chunk_start, end_line: chunk_end} = socket.assigns.selection
     collection_id = socket.assigns.collection.id
 
-    Logger.info("are chunk_start and chunk_end binaries? chunk_start: " <> (inspect is_binary(chunk_start)) <> "; " <> (inspect is_binary(chunk_end)))
+    Logger.debug("are chunk_start and chunk_end binaries? chunk_start: #{inspect is_binary(chunk_start)}; #{inspect is_binary(chunk_end)}")
 
     # Log before state
     collection_before = Lines.get_collection_with_lines(collection_id)
@@ -191,12 +196,13 @@ defmodule AnnotatorWeb.TextAnnotator do
       {:ok, _} ->
         # Get collection fresh from the database
         collection = Lines.get_collection_with_lines(collection_id)
-        Logger.info("After rechunk - line count: #{length(collection.lines)}")
-        Logger.info("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
+        Logger.debug("After rechunk - line count: #{length(collection.lines)}")
+        Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
         {:noreply, socket
           |> assign(
             collection: collection,
-            lines: collection.lines,
+            # lines: collection.lines,
+            chunk_groups: get_chunk_groups(collection.lines),
             selection: nil,
             editing: nil # Update this just to be on the safe side
           )}
@@ -205,15 +211,6 @@ defmodule AnnotatorWeb.TextAnnotator do
         {:noreply, socket
           |> put_flash(:error, error_to_string(reason))
           |> assign(selection: nil)}
-    end
-  end
-
-  defp ensure_string(value) do
-    if !is_binary(value) do
-      Logger.info("Converting numerical value to string.")
-      to_string(value)
-    else
-      value
     end
   end
 
@@ -266,14 +263,14 @@ defmodule AnnotatorWeb.TextAnnotator do
         })
 
         lines = [line]
-        chunks = []
+        # TODO: prob add chunk_groups generator here
 
         {:noreply,
           socket
           |> assign(
             collection: collection,
-            lines: lines,
-            chunks: chunks,
+            # lines: lines,
+            chunk_groups: get_chunk_groups(collection.lines),
             editing: {"0", "2"}, # Start in edit mode for content
             edit_text: "",
             selection: nil
@@ -288,14 +285,15 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp handle_content_update(socket, line, value) do
+  def handle_content_update(socket, line, value) do
     case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
       {:ok, _} ->
         # Get fresh data since content updates might split lines
         collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
         {:noreply, assign(socket,
           collection: collection,
-          lines: collection.lines,
+          # lines: collection.lines,
+          chunk_groups: get_chunk_groups(collection.lines),
           editing: nil
         )}
 
@@ -305,6 +303,28 @@ defmodule AnnotatorWeb.TextAnnotator do
          |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
          |> assign(editing: nil)}
     end
+  end
+
+  defp ensure_string(value) do
+    if !is_binary(value) do
+      Logger.info("Converting numerical value to string.")
+      to_string(value)
+    else
+      value
+    end
+  end
+
+  defp get_collection_chunks(lines) do
+    lines
+    |> Enum.map(& &1.chunk)
+    |> Enum.reject(&is_nil/1)
+    # |> IO.inspect(label: "chunks before uniq_by")
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp get_chunk_groups(lines) do
+    chunks = get_collection_chunks(lines)
+    group_lines_by_chunks(lines, chunks)
   end
 
   defp clear_selection_if_needed(nil, _line_id), do: nil
@@ -328,5 +348,21 @@ defmodule AnnotatorWeb.TextAnnotator do
     end)
     |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, "; ")}" end)
     |> Enum.join("\n")
+  end
+
+  defp group_lines_by_chunks(lines, chunks) do
+    # Create groups based on chunk_id
+    line_groups = Enum.group_by(lines, & &1.chunk_id)
+    # Map chunks to their lines, preserving chunk order
+    chunks
+    |> Enum.map(fn chunk ->
+      {chunk, Map.get(line_groups, chunk.id, [])}
+    end)
+    |> Enum.sort_by(fn {_chunk, lines} ->
+      case lines do
+        [] -> 0
+        [first | _] -> first.line_number
+      end
+    end)
   end
 end

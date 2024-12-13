@@ -5,8 +5,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :mode, :string, default: "read-only"
   attr :editing, :any, default: nil
   attr :selection, :any, default: nil
-
-  attr :lines, :list, required: true
+  # attr :lines, :list, required: true
+  attr :chunk_groups, :list, required: true
 
   slot :col, required: true do
     attr :label, :string
@@ -16,17 +16,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
 
   def anno_grid(assigns) do
-    # Logger.info("check lines: #{inspect assigns.lines}")
-    # Get unique chunks from lines, maintaining order
-    chunks = assigns.lines
-    |> Enum.map(& &1.chunk)
-    |> Enum.reject(&is_nil/1)
-        # |> IO.inspect(label: "chunks before uniq_by")
-    |> Enum.uniq_by(& &1.id)
-
-
-    chunk_groups = group_lines_by_chunks(assigns.lines, chunks)
-    assigns = assign(assigns, :chunk_groups, chunk_groups)
+    # Logger.info("lines assign: #{inspect assigns.lines}")
     ~H"""
     <div class="w-full grid grid-cols-[min-content_min-content_1fr_1fr] items-start rounded-lg border"
         role="grid"
@@ -48,7 +38,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
         <%= for {group, row_index} <- Enum.with_index(@chunk_groups) do %>
           <% {chunk, lines} = group %>
-          <% rowspanclass = "row-span-" <> to_string(Enum.count(lines)) %>
+          <% rowspanclass = "row-span-#{to_string(Enum.count(lines))}" %>
           <div role="row"
                 class={[
                   "grid grid-cols-subgrid col-span-4",
@@ -61,13 +51,13 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             <%= for {col, col_index} <- Enum.with_index(@col) do %>
               <div role="gridcell"
                 tabindex="-1"
-                id={"cell-" <> to_string(row_index) <> "-" <> to_string(col_index)}
+                id={"cell-#{row_index}-#{col_index}"}
                 data-col={col[:name]}
                 data-col-index={col_index}
                 data-row-index={row_index}
                 data-first-line={if(lines != [], do: List.first(lines).line_number)}
                 data-last-line={if(lines != [], do: List.last(lines).line_number)}
-                data-chunk-id={if(chunk, do: chunk.id)}
+                data-chunk-id={chunk.id}
                 data-selectable={col[:name] == "line-num"}
                 data-deletable={col[:deletable]}
                 aria-label={get_aria_label(col, lines, chunk)}
@@ -88,10 +78,10 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 <% else %>
                   <.cell_content
                     col={col}
-                    row_index={to_string(row_index)}
-                    col_index={to_string(col_index)}
+                    row_index={row_index}
+                    col_index={col_index}
                     chunk={chunk}
-                    lines={lines}
+                    row_lines={lines}
                   />
                 <% end %>
               </div>
@@ -153,25 +143,10 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
   defp get_edit_text(_, _, _), do: ""
 
-  defp group_lines_by_chunks(lines, chunks) do
-    # Create groups based on chunk_id
-    line_groups = Enum.group_by(lines, & &1.chunk_id)
-    # Map chunks to their lines, preserving chunk order
-    chunks
-    |> Enum.map(fn chunk ->
-      {chunk, Map.get(line_groups, chunk.id, [])}
-    end)
-    |> Enum.sort_by(fn {_chunk, lines} ->
-      case lines do
-        [] -> 0
-        [first | _] -> first.line_number
-      end
-    end)
-  end
 
   attr :col, :any, required: true
   attr :chunk, :any
-  attr :lines, :list
+  attr :row_lines, :list
   attr :selection, :any, default: nil
   attr :row_index, :string
   attr :col_index, :string
@@ -179,23 +154,21 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     ~H"""
     <%= case @col[:name] do %>
       <% "line-num" -> %>
-        <%= for line <- Enum.sort(@lines, &(&1.line_number <= &2.line_number)) do %>
-          <% line_num = line.line_number %>
-          <div id={"line-" <> to_string(line_num)}
-              class="line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"
+        <%= for line <- Enum.sort(@row_lines, &(&1.line_number <= &2.line_number)) do %>
+          <div class={["line-#{line.line_number}", "line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"]}
               role="button"
               tabindex="-1"
               data-line-number={line.line_number}
               data-selectable="true"
               aria-selected={is_line_selected?(line, @selection)}>
-              <pre><code><%= line.line_number %></code></pre>
+              <span><pre><code><%= line.line_number %></code></pre></span>
           </div>
         <% end %>
       <% "content" -> %>
-        <%= for line <- @lines do %>
+        <%= for line <- @row_lines do %>
           <div class="py-1 hover:bg-zinc-100/50 self-start"
               role="presentation"
-              phx-click={JS.focus(to: "#cell-" <> @row_index <> "-" <> @col_index)}
+              phx-click={JS.focus(to: "#cell-#{@row_index}-#{@col_index}")}
               phx-value-row={@row_index}
               phx-value-col={@col_index}>
               <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
@@ -203,19 +176,19 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <% end %>
       <% "line-span" -> %>
       <div>
-          <%= if @lines == [] do %>
+          <%= if @row_lines == [] do %>
             <%= "0" %>
           <% else %>
-            <%= case length(@lines) do %>
+            <%= case length(@row_lines) do %>
               <% 1 -> %>
-                <%= List.first(@lines).line_number %>
+                <%= List.first(@row_lines).line_number %>
               <% _ -> %>
-                <%= "#{List.first(@lines).line_number}-#{List.last(@lines).line_number}" %>
+                <%= "#{List.first(@row_lines).line_number}-#{List.last(@row_lines).line_number}" %>
             <% end %>
           <% end %>
           </div>
       <% "note" -> %>
-          <%= @chunk && @chunk.note || "No note" %>
+          <%= @chunk.note || "No note" %>
       <% _ -> %>
         <%= if @col do %>
           <%= inspect(@col) %>

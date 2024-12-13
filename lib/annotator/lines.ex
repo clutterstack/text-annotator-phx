@@ -82,6 +82,14 @@ defmodule Annotator.Lines do
     end
   end
 
+  def update_chunk_note(chunk, note) do
+    {:ok, updated_chunk} = chunk
+    |> Chunk.changeset(%{
+      "note" => note
+    })
+    |> Repo.update()
+  end
+
   @doc """
   Ensures the given line range is a single chunk, handling any necessary
   splitting or merging of existing chunks.
@@ -98,7 +106,7 @@ defmodule Annotator.Lines do
         "end_line" => end_line,
         "note" => ""
       })
-
+    # Lots of checking for validity here compared to rest of app -- no harm but is this the most germane stuff to check?
     if changeset.valid? do
       validated_start = Ecto.Changeset.get_change(changeset, :start_line)
       validated_end = Ecto.Changeset.get_change(changeset, :end_line)
@@ -111,12 +119,15 @@ defmodule Annotator.Lines do
             create_chunk(validated_collection_id, validated_start, validated_end, "")
 
           {:ok, [single_chunk]} ->
+            Logger.info("calling reorganize_single_chunk")
             # Only one chunk affected - modify it directly
             reorganize_single_chunk(single_chunk, validated_start, validated_end)
 
-          {:ok, [working_chunk | other_chunks]} ->
+          {:ok, [first_chunk | other_chunks]} ->
+            Logger.info("calling reorganize_multiple_chunks")
+
             # Multiple chunks - use first as working chunk
-            reorganize_multiple_chunks(working_chunk, other_chunks, validated_start, validated_end)
+            reorganize_multiple_chunks(first_chunk, other_chunks, validated_start, validated_end)
 
           {:error, _} = error -> Repo.rollback(error)
         end
@@ -125,8 +136,6 @@ defmodule Annotator.Lines do
       {:error, changeset}
     end
   end
-
-
 
   defp create_chunk(collection_id, start_line, end_line, note) do
     %Chunk{}
@@ -139,7 +148,7 @@ defmodule Annotator.Lines do
     |> Repo.insert()
     |> case do
       {:ok, chunk} = result ->
-        Logger.info("Created chunk: #{inspect(chunk)}")
+        Logger.debug("Created chunk: #{inspect(chunk)}")
         result
       {:error, changeset} ->
         Logger.error("Failed to create chunk: #{inspect(changeset.errors)}")
@@ -198,7 +207,7 @@ defmodule Annotator.Lines do
 
     # Then move any lines that will end up in "after" chunk
     if chunk.end_line > new_end do
-      {:ok, after_chunk} = create_chunk(chunk.collection_id, new_end + 1, chunk.end_line, chunk.note)
+      {:ok, after_chunk} = create_chunk(chunk.collection_id, new_end + 1, chunk.end_line, "")
 
       {count, _} = from(l in Line,
         where: l.chunk_id == ^chunk.id
@@ -231,36 +240,61 @@ defmodule Annotator.Lines do
     {:ok, updated_chunk}
   end
 
-  defp reorganize_multiple_chunks(working_chunk, other_chunks, new_start, new_end) do
-  # First move any lines that will be in the "before" section
-  if working_chunk.start_line < new_start do
-    {:ok, before_chunk} = create_chunk(working_chunk.collection_id, working_chunk.start_line, new_start - 1, working_chunk.note)
+  defp reorganize_multiple_chunks(first_chunk, other_chunks, new_start, new_end) do
+
+  # First split off a new chunk for any lines before the new chunk starts
+  # Move any note from the first selected chunk here, too.
+  {:ok, working_chunk } = if first_chunk.start_line < new_start do
+    {:ok, before_chunk} = create_chunk(first_chunk.collection_id, first_chunk.start_line, new_start - 1, first_chunk.note)
 
     {count, _} = from(l in Line,
-      where: l.chunk_id == ^working_chunk.id
-        and l.line_number >= ^working_chunk.start_line
+      where: l.chunk_id == ^first_chunk.id
+        and l.line_number >= ^first_chunk.start_line
         and l.line_number < ^new_start
     )
     |> Repo.update_all(set: [chunk_id: before_chunk.id])
 
     Logger.info("Moved #{count} lines to before chunk #{before_chunk.id}")
+
+    with {:ok, working_chunk} <- update_chunk_note(first_chunk, ""), do: {:ok, working_chunk}
+  else
+    {:ok, first_chunk}
   end
 
   # Then move any lines that will be in the "after" section
-  if working_chunk.end_line > new_end do
-    {:ok, after_chunk} = create_chunk(working_chunk.collection_id, new_end + 1, working_chunk.end_line, working_chunk.note)
+  {last_chunk, centre} = List.pop_at(other_chunks, -1) # centre is the affected chunks minus the first and last
+  Logger.info("last line of last selected chunk: #{last_chunk.end_line}; last line of selection: #{new_end}")
+
+  if last_chunk.end_line > new_end do
+    Logger.info("create after chunk for lines in last selected chunk after new_end")
+    {:ok, after_chunk} = create_chunk(last_chunk.collection_id, new_end + 1, last_chunk.end_line, "") # No note on new last chunk
 
     {count, _} = from(l in Line,
-      where: l.chunk_id == ^working_chunk.id
+      where: l.chunk_id == ^last_chunk.id
         and l.line_number > ^new_end
-        and l.line_number <= ^working_chunk.end_line
+        and l.line_number <= ^last_chunk.end_line
     )
     |> Repo.update_all(set: [chunk_id: after_chunk.id])
 
     Logger.info("Moved #{count} lines to after chunk #{after_chunk.id}")
   end
 
-  # Move all lines from other chunks to working chunk BEFORE deleting them
+  # If we're in this function, we're merging at least two cells.
+  ## If there's a "before" chunk, we've given it the note, if any,
+  ## from the working chunk and removed that note from the working
+  ## chunk.
+  ## Now just go through
+
+  joined_notes = Enum.map([working_chunk | other_chunks], (& &1.note))
+  |> Enum.join("\n\n")
+
+  {:ok, working_chunk} = update_chunk_note(working_chunk, joined_notes)
+
+  # Logger.info("centre chunk list has length #{length(centre)}")
+  # if centre != [] do
+  # end
+
+  # Move all lines not in before or after chunks to working chunk before deleting chunks
   Enum.each(other_chunks, fn chunk ->
     {count, _} = from(l in Line,
       where: l.chunk_id == ^chunk.id
@@ -393,76 +427,6 @@ end
       |> Repo.update_all(set: [chunk_id: updated_chunk.id])
 
       {:ok, updated_chunk}
-    end)
-  end
-
-  @doc """
-  Merges two adjacent chunks.
-  """
-  def merge_chunks(chunk1_id, chunk2_id) do
-    Repo.transaction(fn ->
-      chunks = Repo.all(
-        from c in Chunk,
-        where: c.id in [^chunk1_id, ^chunk2_id]
-      )
-
-      case chunks do
-        [chunk1, chunk2] when length(chunks) == 2 ->
-          # Determine the new range
-          start_line = min(chunk1.start_line, chunk2.start_line)
-          end_line = max(chunk1.end_line, chunk2.end_line)
-
-          # Create new chunk with combined range
-          {:ok, merged} = create_chunk(
-            chunk1.collection_id,
-            start_line,
-            end_line,
-            chunk1.note
-          )
-
-          # Delete old chunks
-          Repo.delete(chunk1)
-          Repo.delete(chunk2)
-
-          merged
-
-        _ -> {:error, :chunks_not_found}
-      end
-    end)
-  end
-
-  def merge_chunks_range(collection_id, start_line, end_line) do
-    # Find all chunks in range
-    chunks = Repo.all(
-      from c in Chunk,
-      where: c.collection_id == ^collection_id
-        and c.start_line >= ^start_line
-        and c.end_line <= ^end_line,
-      order_by: c.start_line
-    )
-
-    case chunks do
-      [] -> {:error, :no_chunks_found}
-      [single_chunk] -> {:ok, single_chunk}
-      [first | rest] ->
-        # Merge all chunks into first one
-        Enum.reduce_while(rest, {:ok, first}, fn chunk, {:ok, acc} ->
-          case merge_chunks(acc.id, chunk.id) do
-            {:ok, merged} -> {:cont, {:ok, merged}}
-            error -> {:halt, error}
-          end
-        end)
-    end
-  end
-
-  def split_chunk_multiple(chunk, split_points) do
-    Repo.transaction(fn ->
-      Enum.reduce_while(split_points, {:ok, chunk}, fn split_point, {:ok, current_chunk} ->
-        case split_chunk(current_chunk.id, split_point) do
-          {:ok, {chunk1, chunk2}} -> {:cont, {:ok, chunk2}}
-          error -> {:halt, error}
-        end
-      end)
     end)
   end
 
@@ -625,17 +589,6 @@ end
 
   defp create_initial_chunk(collection_id, line) do
     create_chunk(collection_id, line.line_number, line.line_number, "")
-  end
-
-  def get_existing_chunks(collection_id, chunk_start, chunk_end) do
-    Repo.all(
-    from c in Chunk,
-    where: c.collection_id == ^collection_id
-      and ((c.start_line >= ^chunk_start and c.start_line <= ^chunk_end) or
-           (c.end_line >= ^chunk_start and c.end_line <= ^chunk_end) or
-           (c.start_line <= ^chunk_start and c.end_line >= ^chunk_end)),
-    order_by: c.start_line
-    )
   end
 
   @doc """
