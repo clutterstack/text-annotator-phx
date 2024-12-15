@@ -17,7 +17,7 @@ defmodule Annotator.Lines.Line do
     |> validate_required([:line_number, :collection_id, :chunk_id])
     |> foreign_key_constraint(:collection_id)
     |> foreign_key_constraint(:chunk_id)
-    |> unique_constraint([:collection_id, :line_number])
+    # |> unique_constraint([:collection_id, :line_number]) # not sure what to do here but it's hard to renumber lines without violating this
   end
 
   def by_collection(query \\ __MODULE__, collection_id) do

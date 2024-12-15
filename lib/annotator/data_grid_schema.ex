@@ -1,4 +1,4 @@
-defmodule Annotator.DataGridSchema do
+defmodule Annotator.DataGridSchemaDontNeedThisDoI do
   @doc "data for an annotator interface"
 
   defstruct [:id, lines: []]

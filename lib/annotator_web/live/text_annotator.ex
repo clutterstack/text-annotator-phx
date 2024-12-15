@@ -105,42 +105,60 @@ defmodule AnnotatorWeb.TextAnnotator do
     {:noreply, assign(socket, selection: nil)}
   end
 
-  def handle_event("update_cell", %{"row_index" => row_index, "col_index" => "2", "value" => value}, socket) do
-    Logger.info("is_binary(row_index)? #{is_binary(row_index)}")
-    row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
-    # collection_id = socket.assigns.collection.id
-    line = Enum.at(socket.assigns.lines, row_num)
-    handle_content_update(socket, line, value)
+  def handle_event("update_cell", %{"chunk_id" => chunk_id, "col_name" => "content",  "value" => content}, socket) do
+    Logger.info("got an update_cell event to handle. chunk_id: #{chunk_id}, col_name: \'content\', value: #{content}")
+    # Ecto's going to expect chunk_id (which is a foreign key on the lines table) to be an integer:
+    chunk_id_int = ensure_num(chunk_id)
+    # row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
+        Logger.info("TODO: learn to save chunk content edits")
+        case Lines.update_content!(socket.assigns.collection.id, chunk_id_int, content) do
+          {:ok, collection} ->
+            # collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+            {:noreply, assign(socket,
+              collection: collection,
+              chunk_groups: get_chunk_groups(collection.lines),
+              editing: nil
+            )}
+          {:error, changeset} ->
+            {:noreply, socket |> put_flash(:error, error_to_string(changeset))}
+        end
+        # case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
+        #   {:ok, _} ->
+        #     # Get fresh data since content updates might split lines
+        #     collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+        #     {:noreply, assign(socket,
+        #       collection: collection,
+        #       # lines: collection.lines,
+        #       chunk_groups: get_chunk_groups(collection.lines),
+        #       editing: nil
+        #     )}
+
+        #   {:error, reason} ->
+        #     {:noreply,
+        #       socket
+        #       |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
+        #       |> assign(editing: nil)}
+        #   end
+        # line = Enum.at(socket.assigns.lines, row_num)
   end
 
-  # # Add a new event handler for when note editing is complete:
-  # def handle_event("update_cell", %{"row_index" => _row_index, "col_index" => "3", "value" => value}, socket) do
-  #   case socket.assigns.editing do
-  #     nil ->
-  #       {:noreply, socket}
+  def handle_event("update_cell", %{"chunk_id" => chunk_id, "col_name" => "note",  "value" => note}, socket) do
+    Logger.info("got an update_cell event to handle. chunk_id: #{chunk_id}, col_name: \'note\', value: #{note}")
+    Logger.info("it's in the note column")
+    chunk_id_int = ensure_num(chunk_id)
 
-  #     {row_index, "3"} ->
-  #       # Find the chunk for this row
-  #       case get_chunk_for_row(socket.assigns.chunks, row_index) do
-  #         nil ->
-  #           {:noreply, socket |> put_flash(:error, "No chunk found")}
-
-  #         chunk ->
-  #           # Get line IDs through chunk_lines association
-  #           line_ids = Enum.map(chunk.chunk_lines, & &1.line_id)
-
-  #           case Lines.update_chunk(chunk, line_ids, value) do
-  #             {:ok, _updated} ->
-  #               {:noreply, assign(socket,
-  #                 editing: nil
-  #               )}
-
-  #             {:error, changeset} ->
-  #               {:noreply, socket |> put_flash(:error, error_to_string(changeset))}
-  #           end
-  #       end
-  #   end
-  # end
+      case Lines.update_note_by_id(chunk_id_int, note) do
+        {:ok, _updated} ->
+          collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+          {:noreply, assign(socket,
+            collection: collection,
+            chunk_groups: get_chunk_groups(collection.lines),
+            editing: nil
+          )}
+        {:error, changeset} ->
+          {:noreply, socket |> put_flash(:error, error_to_string(changeset))}
+      end
+  end
 
   def handle_event("delete_line", %{}, socket) do
     row_index = String.to_integer(elem(socket.assigns.editing, 0))
@@ -214,27 +232,6 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  # def handle_event("toggle_line_selection", %{"line" => line_number}, socket) do
-  #   line_number = String.to_integer(line_number)
-
-  #   selection = case socket.assigns.selection do
-  #     nil ->
-  #       # Start new selection
-  #       %{start_line: line_number, end_line: line_number}
-
-  #     %{start_line: start_line} = current_selection ->
-  #       if line_number == start_line do
-  #         # Clicking the start line again clears selection
-  #         nil
-  #       else
-  #         # Extend selection to clicked line
-  #         %{current_selection | end_line: line_number}
-  #       end
-  #   end
-
-  #   {:noreply, assign(socket, selection: selection)}
-  # end
-
   def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
     {:noreply, assign(socket, selection: %{
       start_line: start_line,
@@ -285,30 +282,19 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  def handle_content_update(socket, line, value) do
-    case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
-      {:ok, _} ->
-        # Get fresh data since content updates might split lines
-        collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
-        {:noreply, assign(socket,
-          collection: collection,
-          # lines: collection.lines,
-          chunk_groups: get_chunk_groups(collection.lines),
-          editing: nil
-        )}
-
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
-         |> assign(editing: nil)}
-    end
-  end
-
   defp ensure_string(value) do
     if !is_binary(value) do
       Logger.info("Converting numerical value to string.")
       to_string(value)
+    else
+      value
+    end
+  end
+
+  defp ensure_num(value) do
+    if is_binary(value) do
+      Logger.info("Converting string to integer.")
+      String.to_integer(value)
     else
       value
     end

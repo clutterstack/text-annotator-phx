@@ -72,7 +72,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
                   <.editor
                     row_index={row_index}
-                    col_index={col_index}
+                    col_name={col[:name]}
+                    chunk_id={chunk.id}
                     edit_text={get_edit_text(col[:name], {chunk, lines}, lines)}
                   />
                 <% else %>
@@ -206,25 +207,27 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   defp is_line_selected?(_, _), do: false
 
   attr :row_index, :integer, required: true
-  attr :col_index, :integer, required: true
+  # attr :col_index, :integer, required: true
+  attr :col_name, :string, required: true
+  attr :chunk_id, :string, required: true
   # attr :group, :any, required: true
   # attr :col, :map, required: true
   attr :edit_text, :string, required: true
   def editor(assigns) do
     ~H"""
-    <form phx-submit="update_cell">
-      <input type="hidden" name="row_index" value={@row_index}/>
-      <input type="hidden" name="col_index" value={@col_index}/>
-      <textarea
-        class="block w-full h-full min-h-[6rem] p-2 border rounded"
-        name="value"
-        id={"editor-#{@row_index}-#{@col_index}"}
+    <div id={"editor-#{@row_index}-#{@col_name}"}
         phx-hook="CtrlEnter"
         data-row-index={@row_index}
+        data-col-name={@col_name}
+        data-chunk-id={@chunk_id}
+        >
+      <textarea
+        class={"editor-#{@row_index}-#{@col_name} block w-full h-full min-h-[6rem] p-2 border rounded"}
+        name="value"
         phx-debounce="200"
         autofocus
       ><%= @edit_text %></textarea>
-    </form>
+      </div>
     """
   end
 end

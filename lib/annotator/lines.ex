@@ -16,19 +16,20 @@ defmodule Annotator.Lines do
     Collection
     |> Repo.get(id)
     |> case do
-      nil -> nil
       collection ->
+        Logger.info("got a collection with id #{collection.id}")
         collection
         |> Repo.preload([
           lines: {
             from(l in Line,
-              order_by: l.line_number,
-              preload: [:chunk]
+              order_by: l.line_number
+              # preload: [:chunk]
             ),
             :chunk
           }
         ])
         |> ensure_chunks_loaded()
+      nil -> nil
     end
   end
 
@@ -49,38 +50,111 @@ defmodule Annotator.Lines do
   end
 
   @doc """
-  Updates a line's content. If content contains newlines, splits into multiple lines
-  and handles renumbering. Returns {:ok, collection} on success or {:error, reason} on failure.
+  Updates a chunk's content. Handles renumbering of lines . Returns {:ok, collection} on success or {:error, reason} on failure.
   """
-  def update_line!(collection_id, line_number, :content, value) do
-    if String.contains?(value, "\n") do
-      handle_content_split!(collection_id, line_number, value)
-    else
-      # Get existing line to preserve chunk association
-      existing_line = Repo.one(
-        from l in Line,
-        where: l.collection_id == ^collection_id and l.line_number == ^line_number,
-        preload: [:chunk]
-      )
+  def update_content!(collection_id, chunk_id, content) do
+      content_lines = String.split(content, "\n")
+      Logger.info("in update_content! -- is chunk_id a string? #{is_binary(chunk_id)}")
 
-      attrs = %{
-        line_number: line_number,
-        content: value,
-        collection_id: collection_id,
-        chunk_id: existing_line.chunk_id
-      }
+      ## get chunk by its ID, then get its start and end line nums
+      chunk = Repo.get!(Chunk, chunk_id)
+      {start_line, end_line} = {chunk.start_line, chunk.end_line}
+      old_chunk_length = end_line - start_line
+      Logger.info("Old content of chunk was #{old_chunk_length} lines long.")
 
-      case upsert_line!(collection_id, attrs) do
-        {:ok, line} ->
-          # If this is a new line, ensure it has a chunk
-          unless line.chunk_id do
-            create_initial_chunk(collection_id, line)
-          end
-          {:ok, get_collection_with_lines(collection_id)}
-        error -> error
-      end
+      ## In one transaction: delete old lines, update all affected line numbers, ## and change chunk boundaries
+
+        # Delete all lines currently in chunk
+        from(l in Line,
+          where: l.collection_id == ^collection_id and
+                  l.chunk_id == ^chunk_id )
+        |> Repo.delete_all()
+
+        # In this context an O(n) operation isn't too serious; there won't be a huge
+        # number of lines in a chunk, but it feels like we shouldn't need to use
+        # length() here
+        offset = length(content_lines) - old_chunk_length
+        Repo.transaction(fn ->
+
+        # Shift line numbers on all lines beyond the original end_line of this chunk
+        from(l in Line,
+          where: l.collection_id == ^collection_id and l.line_number > ^end_line
+        )
+        |> Repo.update_all(inc: [line_number: offset])
+
+        # Insert new lines into this chunk
+        # Repo.insert_all doesn't autogenerate UUIDs (fine; we're reusing one)
+        # or timestamps (so we'll do those manually)
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+        new_lines = content_lines
+        |> Enum.with_index(start_line)
+        |> Enum.map(fn {content, idx} ->
+          %{
+            collection_id: collection_id,
+            line_number: idx,
+            content: content,
+            chunk_id: chunk_id,
+            inserted_at: now,
+            updated_at: now
+          }
+        end)
+
+        {_, _inserted_lines} = Repo.insert_all(Line, new_lines, returning: true)
+
+        # Update chunk's end_line
+        # Here I'm going all changeset-y and in the next step I go ahead and
+        # use the inc operator which skips all application validations. This is
+        # arbitrary and I could go and make things consistent.
+        # {:ok, _updated_chunk} =
+
+        chunk
+        |> Chunk.changeset(%{"end_line" => end_line + offset})
+        |> Repo.update()
+
+        ## - update start_line and end_line of every chunk with c.start_line >= end_line
+        from(c in Chunk,
+          where: c.collection_id == ^collection_id and c.start_line >= ^end_line
+        )
+        |> Repo.update_all(inc: [start_line: offset, end_line: offset])
+
+      end) # end of the transaction fn
+      {:ok, get_collection_with_lines(collection_id)}
     end
-  end
+
+
+  #   @doc """
+  # Updates a line's content. If content contains newlines, splits into multiple lines
+  # and handles renumbering. Returns {:ok, collection} on success or {:error, reason} on failure.
+  # """
+  # def update_line_old!(collection_id, line_number, :content, value) do
+  #   if String.contains?(value, "\n") do
+  #     handle_content_split!(collection_id, line_number, value)
+  #   else
+  #     # Get existing line to preserve chunk association
+  #     existing_line = Repo.one(
+  #       from l in Line,
+  #       where: l.collection_id == ^collection_id and l.line_number == ^line_number,
+  #       preload: [:chunk]
+  #     )
+
+  #     attrs = %{
+  #       line_number: line_number,
+  #       content: value,
+  #       collection_id: collection_id,
+  #       chunk_id: existing_line.chunk_id
+  #     }
+
+  #     case upsert_line!(collection_id, attrs) do
+  #       {:ok, line} ->
+  #         # If this is a new line, ensure it has a chunk
+  #         unless line.chunk_id do
+  #           create_initial_chunk(collection_id, line)
+  #         end
+  #         {:ok, get_collection_with_lines(collection_id)}
+  #       error -> error
+  #     end
+  #   end
+  # end
 
   def update_chunk_note(chunk, note) do
     {:ok, updated_chunk} = chunk
@@ -88,6 +162,12 @@ defmodule Annotator.Lines do
       "note" => note
     })
     |> Repo.update()
+    {:ok, updated_chunk}
+  end
+
+  def update_note_by_id(chunk_id, note) do
+    chunk = Repo.get_by(Chunk, id: chunk_id)
+    update_chunk_note(chunk, note)
   end
 
   @doc """
@@ -170,7 +250,7 @@ defmodule Annotator.Lines do
     affected = chunks
     |> Enum.filter(&chunk_overlaps?(&1, start_line, end_line))
     |> tap(fn chunks ->
-      Logger.info("Found affected chunks: #{inspect(chunks)}")
+      Logger.debug("Found affected chunks: #{inspect(chunks)}")
     end)
 
     {:ok, affected}
@@ -343,70 +423,6 @@ end
 
   # end
 
-  # @doc """
-  # Creates a new chunk or updates existing one based on line range.
-  # """
-  # def update_or_create_chunk(collection_id, start_line, end_line, note) do
-  #   # Wrap everything in a transaction to ensure data consistency
-  #   Repo.transaction(fn ->
-  #     # Find any existing chunks that overlap with this range
-  #     existing_chunks = Repo.all(
-  #       from c in Chunk,
-  #       where: c.collection_id == ^collection_id
-  #         and c.start_line <= ^end_line
-  #         and c.end_line >= ^start_line,
-  #       order_by: c.start_line
-  #     )
-
-  #     case existing_chunks do
-  #       [] ->
-  #         # No overlapping chunks - create a new one
-  #         case create_chunk(collection_id, start_line, end_line, note) do
-  #           {:ok, chunk} -> {:ok, chunk}
-  #           {:error, changeset} -> Repo.rollback(changeset)
-  #         end
-
-  #       [single_chunk] when single_chunk.start_line == start_line
-  #                     and single_chunk.end_line == end_line ->
-  #         # Exact match - just update the note if needed
-  #         case update_chunk(single_chunk, start_line, end_line, note) do
-  #           {:ok, chunk} -> {:ok, chunk}
-  #           {:error, changeset} -> Repo.rollback(changeset)
-  #         end
-
-  #       chunks ->
-  #         # Create the new chunk first so we have its ID
-  #         case create_chunk(collection_id, start_line, end_line, note) do
-  #           {:ok, new_chunk} ->
-  #             # Update all affected lines to point to the new chunk
-  #             {_count, _} = from(l in Line,
-  #               where: l.collection_id == ^collection_id
-  #                 and l.line_number >= ^start_line
-  #                 and l.line_number <= ^end_line
-  #             )
-  #             |> Repo.update_all(set: [chunk_id: new_chunk.id])
-
-  #             # Now that lines are reassigned, safely delete old chunks
-  #             Enum.each(chunks, fn chunk ->
-  #               # Clear any remaining line associations
-  #               {_, _} = from(l in Line,
-  #                 where: l.chunk_id == ^chunk.id
-  #               )
-  #               |> Repo.update_all(set: [chunk_id: new_chunk.id])
-
-  #               # Now safe to delete the chunk
-  #               Repo.delete!(chunk)
-  #             end)
-
-  #             {:ok, new_chunk}
-
-  #           {:error, changeset} ->
-  #             Repo.rollback(changeset)
-  #         end
-  #     end
-  #   end)
-  # end
-
   def update_chunk(chunk, start_line, end_line, note) do
     Repo.transaction(fn ->
       # First update the chunk's range
@@ -430,39 +446,39 @@ end
     end)
   end
 
-  @doc """
-  Splits a chunk at the given line number, creating two new chunks.
-  """
-  def split_chunk(chunk_id, split_at_line) do
-    Repo.transaction(fn ->
-      chunk = Repo.get!(Chunk, chunk_id)
+  # @doc """
+  # Splits a chunk at the given line number, creating two new chunks.
+  # """
+  # def split_chunk(chunk_id, split_at_line) do
+  #   Repo.transaction(fn ->
+  #     chunk = Repo.get!(Chunk, chunk_id)
 
-      # Only split if the line is within the chunk
-      if split_at_line > chunk.start_line and split_at_line < chunk.end_line do
-        # Create two new chunks
-        {:ok, first} = create_chunk(
-          chunk.collection_id,
-          chunk.start_line,
-          split_at_line - 1,
-          chunk.note
-        )
+  #     # Only split if the line is within the chunk
+  #     if split_at_line > chunk.start_line and split_at_line < chunk.end_line do
+  #       # Create two new chunks
+  #       {:ok, first} = create_chunk(
+  #         chunk.collection_id,
+  #         chunk.start_line,
+  #         split_at_line - 1,
+  #         chunk.note
+  #       )
 
-        {:ok, second} = create_chunk(
-          chunk.collection_id,
-          split_at_line,
-          chunk.end_line,
-          chunk.note
-        )
+  #       {:ok, second} = create_chunk(
+  #         chunk.collection_id,
+  #         split_at_line,
+  #         chunk.end_line,
+  #         chunk.note
+  #       )
 
-        # Delete original chunk
-        Repo.delete(chunk)
+  #       # Delete original chunk
+  #       Repo.delete(chunk)
 
-        {first, second}
-      else
-        {:error, :invalid_split_point}
-      end
-    end)
-  end
+  #       {first, second}
+  #     else
+  #       {:error, :invalid_split_point}
+  #     end
+  #   end)
+  # end
 
   @doc """
   Deletes a line and updates related chunks and line numbers.
@@ -535,9 +551,7 @@ end
 
   # Private helper functions
 
-
-
-  defp handle_content_split!(collection_id, line_number, content) do
+  defp handle_content_split_old!(collection_id, line_number, content) do
     content_lines = String.split(content, "\n")
 
     Repo.transaction(fn ->
