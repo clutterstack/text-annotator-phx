@@ -16,6 +16,7 @@ defmodule Annotator.Lines do
     Collection
     |> Repo.get(id)
     |> case do
+      nil -> nil
       collection ->
         Logger.info("got a collection with id #{collection.id}")
         collection
@@ -29,7 +30,6 @@ defmodule Annotator.Lines do
           }
         ])
         |> ensure_chunks_loaded()
-      nil -> nil
     end
   end
 
@@ -59,10 +59,7 @@ defmodule Annotator.Lines do
       ## get chunk by its ID, then get its start and end line nums
       chunk = Repo.get!(Chunk, chunk_id)
       {start_line, end_line} = {chunk.start_line, chunk.end_line}
-      old_chunk_length = end_line - start_line
-      Logger.info("Old content of chunk was #{old_chunk_length} lines long.")
-
-      ## In one transaction: delete old lines, update all affected line numbers, ## and change chunk boundaries
+      old_chunk_length = end_line - start_line + 1
 
         # Delete all lines currently in chunk
         from(l in Line,
@@ -73,7 +70,13 @@ defmodule Annotator.Lines do
         # In this context an O(n) operation isn't too serious; there won't be a huge
         # number of lines in a chunk, but it feels like we shouldn't need to use
         # length() here
+
         offset = length(content_lines) - old_chunk_length
+        Logger.info("new length is #{length(content_lines)}, old length was #{old_chunk_length}, and so offset is #{offset}.")
+
+        ## In one transaction: update all affected line numbers and
+        ## change chunk boundaries
+
         Repo.transaction(fn ->
 
         # Shift line numbers on all lines beyond the original end_line of this chunk
@@ -188,6 +191,7 @@ defmodule Annotator.Lines do
       })
     # Lots of checking for validity here compared to rest of app -- no harm but is this the most germane stuff to check?
     if changeset.valid? do
+      Logger.info("changeset was valid")
       validated_start = Ecto.Changeset.get_change(changeset, :start_line)
       validated_end = Ecto.Changeset.get_change(changeset, :end_line)
       validated_collection_id = Ecto.Changeset.get_change(changeset, :collection_id)
@@ -198,10 +202,12 @@ defmodule Annotator.Lines do
             # No affected chunks - create new one
             create_chunk(validated_collection_id, validated_start, validated_end, "")
 
-          {:ok, [single_chunk]} ->
-            Logger.info("calling reorganize_single_chunk")
-            # Only one chunk affected - modify it directly
-            reorganize_single_chunk(single_chunk, validated_start, validated_end)
+          # {:ok, [single_chunk]} ->
+          #   Logger.info("Only one chunk affected; calling reorganize_multiple_chunks anyway, with empty other_chunks")
+          #   reorganize_multiple_chunks(single_chunk, [], validated_start, validated_end)
+          #   # Logger.info("calling reorganize_single_chunk with chunk_id #{single_chunk.id}, new_start #{validated_start}, new_end #{validated_end}")
+          #   # # Only one chunk affected - modify it directly
+          #   # reorganize_single_chunk(single_chunk, validated_start, validated_end)
 
           {:ok, [first_chunk | other_chunks]} ->
             Logger.info("calling reorganize_multiple_chunks")
@@ -271,7 +277,10 @@ defmodule Annotator.Lines do
 
   defp reorganize_single_chunk(chunk, new_start, new_end) do
     # First move any lines that will end up in "before" chunk
+    Logger.info("chunk.id: #{chunk.id}")
+    Logger.info("chunk.start_line: #{chunk.start_line}; new_start: #{new_start}")
     if chunk.start_line < new_start do
+      Logger.info("in reorganize_single_chunk, creating a before chunk")
       {:ok, before_chunk} = create_chunk(chunk.collection_id, chunk.start_line, new_start - 1, chunk.note)
 
       # Move lines to before chunk BEFORE changing any boundaries
@@ -342,7 +351,9 @@ defmodule Annotator.Lines do
   end
 
   # Then move any lines that will be in the "after" section
-  {last_chunk, centre} = List.pop_at(other_chunks, -1) # centre is the affected chunks minus the first and last
+  last_chunk = List.last(other_chunks, first_chunk) # second arg is a default for if other_chunks is empty; i.e. if we're only dealing with a single chunk.
+
+  # {last_chunk, _} = List.pop_at(other_chunks, -1) # centre is the affected chunks minus the first and last
   Logger.info("last line of last selected chunk: #{last_chunk.end_line}; last line of selection: #{new_end}")
 
   if last_chunk.end_line > new_end do

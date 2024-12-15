@@ -196,7 +196,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  def handle_event("rechunk", %{}, socket) do
+  def handle_event("rechunk", _, socket) do
     Logger.info("socket.assigns.selection: #{inspect socket.assigns.selection}")
 
     %{start_line: chunk_start, end_line: chunk_end} = socket.assigns.selection
