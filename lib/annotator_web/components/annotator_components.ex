@@ -75,6 +75,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                     col_name={col[:name]}
                     chunk_id={chunk.id}
                     edit_text={get_edit_text(col[:name], {chunk, lines}, lines)}
+                    num_lines={length(lines)}
                   />
                 <% else %>
                   <.cell_content
@@ -115,12 +116,17 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   #   "row-span-#{Enum.count(lines)}"
   # end
 
-  # We may have a few hundreds lines in a chunk, so Tailwind's row-span-*
+  # We may have a few hundred lines in a chunk, so Tailwind's row-span-*
   # shortcuts that seem to go up to 12 aren't cutting it.
   defp rowspanstyle(lines) do
-    "grid-row-end: span " <> to_string(Enum.count(lines)) <>";"
+    "grid-row-end: span #{Enum.count(lines)};"
   end
-
+  # Hmm, if I set a row element's id to this, I can't refresh
+  # (  id={get_chunk_id(chunk)} )
+  # But if I want to scroll to a row, I need an ID.
+  defp get_chunk_id(chunk) do
+    "chunk-#{chunk.id}"
+  end
 
   defp get_aria_label(col, lines, chunk) do
     case col[:name] do
@@ -223,6 +229,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   # attr :group, :any, required: true
   # attr :col, :map, required: true
   attr :edit_text, :string, required: true
+  attr :num_lines, :integer, required: true
   def editor(assigns) do
     ~H"""
     <div id={"editor-#{@row_index}-#{@col_name}"}
@@ -230,6 +237,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         data-row-index={@row_index}
         data-col-name={@col_name}
         data-chunk-id={@chunk_id}
+        style={"grid-row-end: span #{@num_lines}"}
         >
       <textarea
         class={"editor-#{@row_index}-#{@col_name} block w-full h-full min-h-[6rem] p-2 border rounded"}

@@ -40,7 +40,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   def render(assigns) do
     ~H"""
     <.back navigate={~p"/collections"}>Back to collections</.back>
-    <div class="mx-auto max-w-4xl">
+    <div class="w-full">
       <.modal :if={!@collection} id="collection-name-modal" show={true}>
         <.simple_form for={@form} phx-submit="create_collection">
           <.input field={@form[:name]} label="Collection Name" required />
@@ -156,22 +156,23 @@ defmodule AnnotatorWeb.TextAnnotator do
     Logger.debug("are chunk_start and chunk_end binaries? chunk_start: #{inspect is_binary(chunk_start)}; #{inspect is_binary(chunk_end)}")
 
     # Log before state
-    collection_before = Lines.get_collection_with_assocs(collection_id)
-    Logger.info("Before rechunk - chunks: #{inspect(Enum.map(collection_before.lines, & &1.chunk_id))}")
-    Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
+    # collection_before = Lines.get_collection_with_assocs(collection_id)
+    # Logger.info("Before rechunk - chunks: #{inspect(Enum.map(collection_before.lines, & &1.chunk_id))}")
+    # Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
 
 
     case Lines.split_or_merge_chunks(collection_id, chunk_start, chunk_end) do
       {:ok, _} ->
         # Get collection fresh from the database
         collection = Lines.get_collection_with_assocs(collection_id)
-        Logger.debug("After rechunk - line count: #{length(collection.lines)}")
-        Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
+        chunk_groups = get_chunk_groups(collection.lines)
+        # Logger.debug("After rechunk - line count: #{length(collection.lines)}")
+        # Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
         {:noreply, socket
           |> assign(
             collection: collection,
             # lines: collection.lines,
-            chunk_groups: get_chunk_groups(collection.lines),
+            chunk_groups: chunk_groups,
             selection: nil,
             editing: nil # Update this just to be on the safe side
           )}
