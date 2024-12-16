@@ -22,19 +22,16 @@ defmodule AnnotatorWeb.TextAnnotator do
           collection: collection,
           chunk_groups: get_chunk_groups(collection.lines),
           editing: nil,
-          selection: nil
+          selection: nil,
+          form: to_form(%{"name" => collection.name})
         )}
     end
   end
 
   def mount(_params, _session, socket) do
-    # handle_event("create_collection", %{"name" => "New Collection"}, socket)
-    {:ok, collection} = new_collection("New Collection")
-    new_collection = Lines.get_collection_with_assocs(collection.id)
     {:ok, assign(socket,
-      collection: new_collection,
-      chunk_groups: get_chunk_groups(new_collection.lines),
-      editing: [0,2],
+      collection: nil,
+      editing: [0,1],
       selection: nil,
       form: to_form(%{"name" => ""})
     )}
@@ -42,6 +39,7 @@ defmodule AnnotatorWeb.TextAnnotator do
 
   def render(assigns) do
     ~H"""
+    <.back navigate={~p"/collections"}>Back to collections</.back>
     <div class="mx-auto max-w-4xl">
       <.modal :if={!@collection} id="collection-name-modal" show={true}>
         <.simple_form for={@form} phx-submit="create_collection">
@@ -52,7 +50,15 @@ defmodule AnnotatorWeb.TextAnnotator do
         </.simple_form>
       </.modal>
 
-      <div class="space-y-8 py-8">
+      <div :if={@collection} class="space-y-8">
+        <div  class="mx-auto max-w-4xl">
+          <.name_form for={@form} phx-submit="rename_collection">
+            <.input class="grow" field={@form[:name]} label="Collection Name" required />
+            <:actions>
+              <.button phx-disable-with="Renaming...">Rename collection</.button>
+            </:actions>
+          </.name_form>
+        </div>
         <.anno_grid
           mode="author"
           chunk_groups={@chunk_groups}
@@ -204,7 +210,6 @@ defmodule AnnotatorWeb.TextAnnotator do
           socket
           |> assign(
             collection: new_collection,
-            # lines: new_collection.lines,
             chunk_groups: get_chunk_groups(new_collection.lines),
             editing: {"0", "2"}, # Start in edit mode for content
             selection: nil
@@ -219,12 +224,35 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp new_collection(name) do
-    {:ok, new_coll} = Lines.create_collection(%{name: name})
-    Lines.append_chunk(new_coll.id)
-    {:ok, new_coll}
+  def handle_event("rename_collection", %{"name" => name}, socket) do
+    case rename_collection(socket.assigns.collection.id, name) do
+      {:ok, collection} ->
+        renamed_collection = Lines.get_collection_with_assocs(collection.id)
+        {:noreply, assign(socket, collection: renamed_collection
+            # chunk_groups: get_chunk_groups(new_collection.lines),
+            # editing: {"0", "2"}, # Start in edit mode for content
+            # selection: nil
+          )
+          |> put_flash(:info, "Collection renamed successfully")}
+
+      {:error, changeset} ->
+        {:noreply,
+          socket
+          |> put_flash(:error, error_to_string(changeset))
+          |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
+    end
   end
 
+  defp new_collection(name) do
+    {:ok, new_collection} = Lines.create_collection(%{name: name})
+    Lines.append_chunk(new_collection.id)
+    {:ok, new_collection}
+  end
+
+  defp rename_collection(id, name) do
+    collection = Lines.get_collection!(id)
+    Lines.update_collection(collection, %{name: name})
+  end
 
   defp ensure_string(value) do
     if !is_binary(value) do
@@ -269,10 +297,6 @@ defmodule AnnotatorWeb.TextAnnotator do
     |> Enum.reject(&is_nil/1)
     # |> IO.inspect(label: "chunks before uniq_by")
     |> Enum.uniq_by(& &1.id)
-  end
-
-  defp line_id_range(%{start_line: start_id, end_line: end_id}) do
-    Range.new(min(start_id, end_id), max(start_id, end_id))
   end
 
   defp error_to_string(changeset) do

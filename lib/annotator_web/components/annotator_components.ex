@@ -38,7 +38,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
         <%= for {group, row_index} <- Enum.with_index(@chunk_groups) do %>
           <% {chunk, lines} = group %>
-          <% rowspanclass = "row-span-#{to_string(Enum.count(lines))}" %>
           <div role="row"
                 class={[
                   "grid grid-cols-subgrid col-span-4",
@@ -47,6 +46,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                   # Add selected state styling
                   is_selected?(lines, @selection) && "bg-blue-50"
                 ]}
+                style={rowspanstyle(lines)}
                 aria-selected={is_selected?(lines, @selection)}>
             <%= for {col, col_index} <- Enum.with_index(@col) do %>
               <div role="gridcell"
@@ -62,12 +62,12 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 data-deletable={col[:deletable]}
                 aria-label={get_aria_label(col, lines, chunk)}
                 class={[
-                  rowspanclass,
                   "p-1 min-h-[3rem] z-30 focus:bg-fuchsia-600",
                   col_index != length(@col) - 1 && "border-r",
                   col[:editable] && @mode !== "read-only" && "hover:cursor-pointer hover:bg-zinc-100/50 editable",
                   col[:name] in ["line-num", "content"] && "grid grid-rows-subgrid"
                 ]}
+                style={rowspanstyle(lines)}
                 >
                 <%= if @editing == {to_string(row_index), to_string(col_index)} do %>
                   <.editor
@@ -101,7 +101,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
-
   defp is_selected?(lines, selection) when not is_nil(selection) do
     first_line = List.first(lines)
     last_line = List.last(lines)
@@ -111,6 +110,17 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       last_line.line_number <= max(selection.start_line, selection.end_line)
   end
   defp is_selected?(_, _), do: false
+
+  # defp rowspanclass(lines) do
+  #   "row-span-#{Enum.count(lines)}"
+  # end
+
+  # We may have a few hundreds lines in a chunk, so Tailwind's row-span-*
+  # shortcuts that seem to go up to 12 aren't cutting it.
+  defp rowspanstyle(lines) do
+    "grid-row-end: span " <> to_string(Enum.count(lines)) <>";"
+  end
+
 
   defp get_aria_label(col, lines, chunk) do
     case col[:name] do
@@ -228,6 +238,42 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         autofocus
       ><%= @edit_text %></textarea>
       </div>
+    """
+  end
+
+  @doc """
+  A copy of the core simple_form but with the styles I want instead
+
+  ## Examples
+
+      <.name_form for={@form} phx-change="validate" phx-submit="save">
+        <.input field={@form[:email]} label="Email"/>
+        <.input field={@form[:username]} label="Username" />
+        <:actions>
+          <.button>Save</.button>
+        </:actions>
+      </.name_form>
+  """
+  attr :for, :any, required: true, doc: "the data structure for the form"
+  attr :as, :any, default: nil, doc: "the server side parameter to collect all input under"
+
+  attr :rest, :global,
+    include: ~w(autocomplete name rel action enctype method novalidate target multipart),
+    doc: "the arbitrary HTML attributes to apply to the form tag"
+
+  slot :inner_block, required: true
+  slot :actions, doc: "the slot for form actions, such as a submit button"
+
+  def name_form(assigns) do
+    ~H"""
+    <.form :let={f} for={@for} as={@as} {@rest}>
+      <div class="mt-6 space-y-8 bg-white flex justify-stretch">
+        <%= render_slot(@inner_block, f) %>
+        <div :for={action <- @actions} class="mt-2 flex items-center justify-between gap-6">
+          <%= render_slot(action, f) %>
+        </div>
+      </div>
+    </.form>
     """
   end
 end

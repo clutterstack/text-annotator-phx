@@ -159,13 +159,6 @@ defmodule Annotator.Lines do
         "end_line" => end_line,
         "note" => ""
       })
-    # Lots of checking for validity here compared to rest of app -- no harm but is this the most germane stuff to check?
-    # if changeset.valid? do
-    #   Logger.info("changeset was valid")
-    #   validated_start = Ecto.Changeset.get_change(changeset, :start_line)
-    #   validated_end = Ecto.Changeset.get_change(changeset, :end_line)
-    #   validated_collection_id = Ecto.Changeset.get_change(changeset, :collection_id)
-
       Repo.transaction(fn ->
         case find_affected_chunks(collection_id, start_line, end_line) do
           {:ok, [first_chunk | other_chunks]} ->
@@ -177,9 +170,6 @@ defmodule Annotator.Lines do
           {:error, _} = error -> Repo.rollback(error)
         end
       end)
-    # else
-    #   {:error, changeset}
-    # end
   end
 
   defp create_chunk(collection_id, start_line, end_line, note) do

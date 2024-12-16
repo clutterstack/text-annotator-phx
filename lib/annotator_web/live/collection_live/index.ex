@@ -19,7 +19,7 @@ defmodule AnnotatorWeb.CollectionLive.Index do
           navigate={~p"/collections/new"}
           class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700"
         >
-          New Annotation
+          New Collection
         </.link>
       </div>
 
@@ -29,6 +29,9 @@ defmodule AnnotatorWeb.CollectionLive.Index do
             <tr>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
                 Name
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                ID
               </th>
               <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
                 Lines
@@ -48,11 +51,16 @@ defmodule AnnotatorWeb.CollectionLive.Index do
                   <%= collection.name %>
                 </.link>
               </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900">
+                <.link navigate={~p"/collections/#{collection.id}"} class="hover:text-blue-600">
+                  <%= collection.id %>
+                </.link>
+              </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
                 <%= Lines.Collection.lines_count(collection) %>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500">
-                <%= Calendar.strftime(collection.inserted_at, "%Y-%m-%d") %>
+                <%= Calendar.strftime(collection.inserted_at, "%Y-%m-%d-%H:%M") %>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div class="flex justify-end gap-3">
