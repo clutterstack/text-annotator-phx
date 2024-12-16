@@ -1,5 +1,4 @@
 defmodule Annotator.Lines.Collection do
-  @doc "data for an annotator interface"
   use Ecto.Schema
   import Ecto.Changeset
 

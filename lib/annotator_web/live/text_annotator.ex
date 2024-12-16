@@ -5,7 +5,7 @@ defmodule AnnotatorWeb.TextAnnotator do
   require Logger
 
   def mount(%{"id" => id}, _session, socket) do
-    case Lines.get_collection_with_lines(id) do
+    case Lines.get_collection_with_assocs(id) do
       nil ->
         Logger.info("in textannotator, no collection matched id")
         {:ok,
@@ -22,7 +22,6 @@ defmodule AnnotatorWeb.TextAnnotator do
         # change it in the UI...though maybe we won't.
         {:ok, assign(socket,
           collection: collection,
-          # lines: collection.lines,
           chunk_groups: get_chunk_groups(collection.lines),
           editing: nil,
           selection: nil
@@ -31,13 +30,14 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket,
-      collection: nil,
-      # lines: [%Line{line_number: 0, content: ""}],
-      editing: [0,1],
-      selection: nil,
-      form: to_form(%{"name" => ""})
-    )}
+    handle_event("create_collection", %{"name" => "New Collection"}, socket)
+    # {:ok, assign(socket,
+    #   collection:
+    #   chunk_groups: get_chunk_groups(collection.lines),
+    #   editing: [0,1],
+    #   selection: nil,
+    #   form: to_form(%{"name" => ""})
+    # )}
   end
 
   def render(assigns) do
@@ -110,10 +110,9 @@ defmodule AnnotatorWeb.TextAnnotator do
     # Ecto's going to expect chunk_id (which is a foreign key on the lines table) to be an integer:
     chunk_id_int = ensure_num(chunk_id)
     # row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
-        Logger.info("TODO: learn to save chunk content edits")
         case Lines.update_content!(socket.assigns.collection.id, chunk_id_int, content) do
           {:ok, collection} ->
-            # collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+            # collection = Lines.get_collection_with_assocs(socket.assigns.collection.id)
             {:noreply, assign(socket,
               collection: collection,
               chunk_groups: get_chunk_groups(collection.lines),
@@ -122,24 +121,6 @@ defmodule AnnotatorWeb.TextAnnotator do
           {:error, changeset} ->
             {:noreply, socket |> put_flash(:error, error_to_string(changeset))}
         end
-        # case Lines.update_line!(socket.assigns.collection.id, line.line_number, :content, value) do
-        #   {:ok, _} ->
-        #     # Get fresh data since content updates might split lines
-        #     collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
-        #     {:noreply, assign(socket,
-        #       collection: collection,
-        #       # lines: collection.lines,
-        #       chunk_groups: get_chunk_groups(collection.lines),
-        #       editing: nil
-        #     )}
-
-        #   {:error, reason} ->
-        #     {:noreply,
-        #       socket
-        #       |> put_flash(:error, "Failed to update line: #{inspect(reason)}")
-        #       |> assign(editing: nil)}
-        #   end
-        # line = Enum.at(socket.assigns.lines, row_num)
   end
 
   def handle_event("update_cell", %{"chunk_id" => chunk_id, "col_name" => "note",  "value" => note}, socket) do
@@ -149,7 +130,7 @@ defmodule AnnotatorWeb.TextAnnotator do
 
       case Lines.update_note_by_id(chunk_id_int, note) do
         {:ok, _updated} ->
-          collection = Lines.get_collection_with_lines(socket.assigns.collection.id)
+          collection = Lines.get_collection_with_assocs(socket.assigns.collection.id)
           {:noreply, assign(socket,
             collection: collection,
             chunk_groups: get_chunk_groups(collection.lines),
@@ -158,42 +139,6 @@ defmodule AnnotatorWeb.TextAnnotator do
         {:error, changeset} ->
           {:noreply, socket |> put_flash(:error, error_to_string(changeset))}
       end
-  end
-
-  def handle_event("delete_line", %{}, socket) do
-    row_index = String.to_integer(elem(socket.assigns.editing, 0))
-    line = Enum.at(socket.assigns.lines, row_index)
-    collection_id = socket.assigns.collection.id
-
-    # Don't delete if it's the last line
-    case Lines.validate_line_deletion(collection_id) do
-      :ok ->
-        case Lines.delete_line(collection_id, line.id) do
-          {:ok, _deleted_line} ->
-            # Refresh collection data
-            collection = Lines.get_collection_with_lines(collection_id)
-
-            {:noreply, assign(socket,
-              collection: collection,
-              # lines: collection.lines,
-              editing: nil,
-              # Clear selection if the deleted line was part of it
-              selection: clear_selection_if_needed(socket.assigns.selection, line.id)
-            )}
-
-          {:error, reason} ->
-            {:noreply,
-              socket
-              |> put_flash(:error, "Failed to delete line: #{inspect(reason)}")
-              |> assign(editing: nil)}
-        end
-
-      {:error, reason} ->
-        {:noreply,
-          socket
-          |> put_flash(:error, reason)
-          |> assign(editing: nil)}
-    end
   end
 
   def handle_event("rechunk", _, socket) do
@@ -205,7 +150,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     Logger.debug("are chunk_start and chunk_end binaries? chunk_start: #{inspect is_binary(chunk_start)}; #{inspect is_binary(chunk_end)}")
 
     # Log before state
-    collection_before = Lines.get_collection_with_lines(collection_id)
+    collection_before = Lines.get_collection_with_assocs(collection_id)
     Logger.info("Before rechunk - chunks: #{inspect(Enum.map(collection_before.lines, & &1.chunk_id))}")
     Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
 
@@ -213,7 +158,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     case Lines.ensure_chunk(collection_id, chunk_start, chunk_end) do
       {:ok, _} ->
         # Get collection fresh from the database
-        collection = Lines.get_collection_with_lines(collection_id)
+        collection = Lines.get_collection_with_assocs(collection_id)
         Logger.debug("After rechunk - line count: #{length(collection.lines)}")
         Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
         {:noreply, socket
@@ -282,6 +227,12 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
+  defp new_collection() do
+    {:ok, new_coll} = Lines.create_collection(%{name: "New collection"})
+    Lines.get_collection_with_assocs(new_coll.id)
+  end
+
+
   defp ensure_string(value) do
     if !is_binary(value) do
       Logger.info("Converting numerical value to string.")
@@ -300,40 +251,18 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp get_collection_chunks(lines) do
-    lines
-    |> Enum.map(& &1.chunk)
-    |> Enum.reject(&is_nil/1)
-    # |> IO.inspect(label: "chunks before uniq_by")
-    |> Enum.uniq_by(& &1.id)
-  end
 
   defp get_chunk_groups(lines) do
     chunks = get_collection_chunks(lines)
     group_lines_by_chunks(lines, chunks)
   end
 
-  defp clear_selection_if_needed(nil, _line_id), do: nil
-  defp clear_selection_if_needed(selection, line_id) do
-    if line_id in line_id_range(selection) do
-      nil
-    else
-      selection
-    end
-  end
-
-  defp line_id_range(%{start_line: start_id, end_line: end_id}) do
-    Range.new(min(start_id, end_id), max(start_id, end_id))
-  end
-
-  defp error_to_string(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, "; ")}" end)
-    |> Enum.join("\n")
+  defp get_collection_chunks(lines) do
+    lines
+    |> Enum.map(& &1.chunk)
+    |> Enum.reject(&is_nil/1)
+    # |> IO.inspect(label: "chunks before uniq_by")
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp group_lines_by_chunks(lines, chunks) do
@@ -351,4 +280,19 @@ defmodule AnnotatorWeb.TextAnnotator do
       end
     end)
   end
+
+  defp line_id_range(%{start_line: start_id, end_line: end_id}) do
+    Range.new(min(start_id, end_id), max(start_id, end_id))
+  end
+
+  defp error_to_string(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.map(fn {k, v} -> "#{k}: #{Enum.join(v, "; ")}" end)
+    |> Enum.join("\n")
+  end
+
 end
