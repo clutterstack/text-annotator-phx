@@ -103,7 +103,7 @@ defmodule Annotator.Lines do
         ## change chunk boundaries
 
         Repo.transaction(fn ->
-
+          Logger.info("Shift line numbers on all lines after #{end_line}")
         # Shift line numbers on all lines beyond the original end_line of this chunk
         from(l in Line,
           where: l.collection_id == ^collection_id and l.line_number > ^end_line
@@ -138,9 +138,11 @@ defmodule Annotator.Lines do
         |> Chunk.changeset(%{"end_line" => end_line + offset})
         |> Repo.update()
 
-        ## - update start_line and end_line of every chunk with c.start_line >= end_line
+        ## Update start_line and end_line of every chunk with c.start_line >= end_line. Oh, but not the first chunk.
         from(c in Chunk,
-          where: c.collection_id == ^collection_id and c.start_line >= ^end_line
+          where: c.collection_id == ^collection_id
+          and c.start_line >= ^end_line
+          and c.id != ^chunk_id
         )
         |> Repo.update_all(inc: [start_line: offset, end_line: offset])
 
