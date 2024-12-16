@@ -16,8 +16,6 @@ defmodule AnnotatorWeb.TextAnnotator do
       collection ->
         # Get unique chunks from lines, maintaining order
         # chunks = get_collection_chunks(collection.lines)
-
-        # chunk_groups =
         # May want mode to be an assign too...certainly if we're going to
         # change it in the UI...though maybe we won't.
         {:ok, assign(socket,
@@ -30,14 +28,16 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def mount(_params, _session, socket) do
-    handle_event("create_collection", %{"name" => "New Collection"}, socket)
-    # {:ok, assign(socket,
-    #   collection:
-    #   chunk_groups: get_chunk_groups(collection.lines),
-    #   editing: [0,1],
-    #   selection: nil,
-    #   form: to_form(%{"name" => ""})
-    # )}
+    # handle_event("create_collection", %{"name" => "New Collection"}, socket)
+    {:ok, collection} = new_collection("New Collection")
+    new_collection = Lines.get_collection_with_assocs(collection.id)
+    {:ok, assign(socket,
+      collection: new_collection,
+      chunk_groups: get_chunk_groups(new_collection.lines),
+      editing: [0,2],
+      selection: nil,
+      form: to_form(%{"name" => ""})
+    )}
   end
 
   def render(assigns) do
@@ -110,7 +110,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     # Ecto's going to expect chunk_id (which is a foreign key on the lines table) to be an integer:
     chunk_id_int = ensure_num(chunk_id)
     # row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
-        case Lines.update_content!(socket.assigns.collection.id, chunk_id_int, content) do
+        case Lines.update_content(socket.assigns.collection.id, chunk_id_int, content) do
           {:ok, collection} ->
             # collection = Lines.get_collection_with_assocs(socket.assigns.collection.id)
             {:noreply, assign(socket,
@@ -155,7 +155,7 @@ defmodule AnnotatorWeb.TextAnnotator do
     Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
 
 
-    case Lines.ensure_chunk(collection_id, chunk_start, chunk_end) do
+    case Lines.split_or_merge_chunks(collection_id, chunk_start, chunk_end) do
       {:ok, _} ->
         # Get collection fresh from the database
         collection = Lines.get_collection_with_assocs(collection_id)
@@ -197,24 +197,16 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def handle_event("create_collection", %{"name" => name}, socket) do
-    case Lines.create_collection(%{name: name}) do
+    case new_collection(name) do
       {:ok, collection} ->
-        {:ok, line} = Lines.add_line(collection.id, %{
-          line_number: 0,
-          content: "",
-        })
-
-        lines = [line]
-        # TODO: prob add chunk_groups generator here
-
+        new_collection = Lines.get_collection_with_assocs(collection.id)
         {:noreply,
           socket
           |> assign(
-            collection: collection,
-            # lines: lines,
-            chunk_groups: get_chunk_groups(collection.lines),
+            collection: new_collection,
+            # lines: new_collection.lines,
+            chunk_groups: get_chunk_groups(new_collection.lines),
             editing: {"0", "2"}, # Start in edit mode for content
-            edit_text: "",
             selection: nil
           )
           |> put_flash(:info, "Collection created successfully")}
@@ -227,9 +219,10 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp new_collection() do
-    {:ok, new_coll} = Lines.create_collection(%{name: "New collection"})
-    Lines.get_collection_with_assocs(new_coll.id)
+  defp new_collection(name) do
+    {:ok, new_coll} = Lines.create_collection(%{name: name})
+    Lines.append_chunk(new_coll.id)
+    {:ok, new_coll}
   end
 
 
@@ -253,19 +246,8 @@ defmodule AnnotatorWeb.TextAnnotator do
 
 
   defp get_chunk_groups(lines) do
+    # returns a list of {chunk, lines} tuples
     chunks = get_collection_chunks(lines)
-    group_lines_by_chunks(lines, chunks)
-  end
-
-  defp get_collection_chunks(lines) do
-    lines
-    |> Enum.map(& &1.chunk)
-    |> Enum.reject(&is_nil/1)
-    # |> IO.inspect(label: "chunks before uniq_by")
-    |> Enum.uniq_by(& &1.id)
-  end
-
-  defp group_lines_by_chunks(lines, chunks) do
     # Create groups based on chunk_id
     line_groups = Enum.group_by(lines, & &1.chunk_id)
     # Map chunks to their lines, preserving chunk order
@@ -279,6 +261,14 @@ defmodule AnnotatorWeb.TextAnnotator do
         [first | _] -> first.line_number
       end
     end)
+  end
+
+  defp get_collection_chunks(lines) do
+    lines
+    |> Enum.map(& &1.chunk)
+    |> Enum.reject(&is_nil/1)
+    # |> IO.inspect(label: "chunks before uniq_by")
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp line_id_range(%{start_line: start_id, end_line: end_id}) do
