@@ -258,7 +258,7 @@ if (nextEl) {
     
     this.submitChunk();
     this.selectionClear();
-    this.focusCell(0,1);
+    //this.focusCell(0,1);
     this.el.removeEventListener('mouseover', this.handleMouseOver);
   },
 
@@ -266,7 +266,7 @@ if (nextEl) {
     if (this.state.isLineSelecting) {
       console.log("escapeKey: this.state.isLineSelecting was true")
       this.selectionClear();
-      this.focusCell(0,1);
+      //this.focusCell(0,1);
     } else {
       console.log("escape -- focus whole grid");
       this.el.focus();
@@ -298,7 +298,7 @@ if (nextEl) {
         }
         else if (this.state.isLineSelecting == true) {
           this.submitChunk();
-          this.focusCell(0,1);
+          //this.focusCell(0,1);
           this.selectionClear();
         }
       }  

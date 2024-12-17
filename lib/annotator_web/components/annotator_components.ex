@@ -121,12 +121,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   defp rowspanstyle(lines) do
     "grid-row-end: span #{Enum.count(lines)};"
   end
-  # Hmm, if I set a row element's id to this, I can't refresh
-  # (  id={get_chunk_id(chunk)} )
-  # But if I want to scroll to a row, I need an ID.
-  defp get_chunk_id(chunk) do
-    "chunk-#{chunk.id}"
-  end
 
   defp get_aria_label(col, lines, chunk) do
     case col[:name] do
@@ -172,7 +166,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     <%= case @col[:name] do %>
       <% "line-num" -> %>
         <%= for line <- Enum.sort(@row_lines, &(&1.line_number <= &2.line_number)) do %>
-          <div class={["line-#{line.line_number}", "line-number py-1 hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"]}
+          <div class={["line-#{line.line_number}", "line-number hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"]}
               role="button"
               tabindex="-1"
               data-line-number={line.line_number}
@@ -183,7 +177,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <% end %>
       <% "content" -> %>
         <%= for line <- @row_lines do %>
-          <div class="py-1 hover:bg-zinc-100/50 self-start"
+          <div class="hover:bg-zinc-100/50 self-start"
               role="presentation"
               phx-click={JS.focus(to: "#cell-#{@row_index}-#{@col_index}")}
               phx-value-row={@row_index}

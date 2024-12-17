@@ -37,6 +37,14 @@ let liveSocket = new LiveSocket("/live", Socket, {
   params: {_csrf_token: csrfToken}, hooks: Hooks}
 )
 
+// Add a listener for my custom event to scroll to a particular chunk after anno-grid
+// gets refreshed by LiveView
+window.addEventListener("annotator:scroll-to-chunk", (e) => {
+  console.log("scroll-to-chunk invoked!", e.detail)
+  }
+)
+
+
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))

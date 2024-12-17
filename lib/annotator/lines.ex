@@ -19,7 +19,6 @@ defmodule Annotator.Lines do
     |> case do
       nil -> nil
       collection ->
-        Logger.info("got a collection with id #{collection.id}")
         collection
         |> Repo.preload([
           # Preload the collection's associated lines, and sort them;
@@ -289,11 +288,11 @@ defmodule Annotator.Lines do
     )
     |> Repo.update_all(set: [chunk_id: working_chunk.id])
 
-    Logger.info("Moved #{count} lines from chunk #{chunk.id} to working chunk")
+    Logger.debug("Moved #{count} lines from chunk #{chunk.id} to working chunk")
 
     # Now safe to delete the chunk
     Repo.delete!(chunk)
-    Logger.info("Deleted chunk #{chunk.id}")
+    Logger.debug("Deleted chunk #{chunk.id}")
   end)
 
   # Finally update working chunk boundaries

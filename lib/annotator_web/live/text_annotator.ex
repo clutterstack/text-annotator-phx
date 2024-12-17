@@ -1,6 +1,8 @@
 defmodule AnnotatorWeb.TextAnnotator do
   use AnnotatorWeb, :live_view
   alias Annotator.Lines
+  alias Phoenix.LiveView.JS
+
   import AnnotatorWeb.AnnotatorComponents
   require Logger
 
@@ -101,18 +103,18 @@ defmodule AnnotatorWeb.TextAnnotator do
   end
 
   def handle_event("cancel_edit", _params, socket) do
-    Logger.info("cancel_edit handler triggered")
+    Logger.debug("cancel_edit handler triggered")
     {:noreply, assign(socket,
       editing: nil)}
   end
 
   def handle_event("cancel_selection", _params, socket) do
-    Logger.info("cancel_selection handler triggered")
+    Logger.debug("cancel_selection handler triggered")
     {:noreply, assign(socket, selection: nil)}
   end
 
   def handle_event("update_cell", %{"chunk_id" => chunk_id, "col_name" => "content",  "value" => content}, socket) do
-    Logger.info("got an update_cell event to handle. chunk_id: #{chunk_id}, col_name: \'content\', value: #{content}")
+    Logger.debug("got an update_cell event to handle. chunk_id: #{chunk_id}, col_name: \'content\', value: #{content}")
     # Ecto's going to expect chunk_id (which is a foreign key on the lines table) to be an integer:
     chunk_id_int = ensure_num(chunk_id)
     # row_num = if is_binary(row_index), do: String.to_integer(row_index), else: row_index
@@ -168,6 +170,7 @@ defmodule AnnotatorWeb.TextAnnotator do
         chunk_groups = get_chunk_groups(collection.lines)
         # Logger.debug("After rechunk - line count: #{length(collection.lines)}")
         # Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
+        %JS{} |> JS.dispatch("annotator:scroll-to-chunk", detail: %{chunk_start: chunk_start})
         {:noreply, socket
           |> assign(
             collection: collection,
@@ -175,7 +178,10 @@ defmodule AnnotatorWeb.TextAnnotator do
             chunk_groups: chunk_groups,
             selection: nil,
             editing: nil # Update this just to be on the safe side
-          )}
+          )
+          # |> scroll_to_chunk(chunk_start)
+        }
+
 
       {:error, reason} ->
         {:noreply, socket
@@ -243,6 +249,14 @@ defmodule AnnotatorWeb.TextAnnotator do
           |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
     end
   end
+
+  defp scroll_to_chunk(socket, chunk_start) do
+    Logger.info("scroll_to_chunk function invoked")
+    %JS{}
+    |> JS.dispatch("annotator:scroll-to-chunk", detail: %{chunk_start: chunk_start})
+  end
+
+
 
   defp new_collection(name) do
     {:ok, new_collection} = Lines.create_collection(%{name: name})

@@ -3,6 +3,10 @@
 @import "tailwindcss/utilities";
 
 /* This file is for your main application CSS */
+
+body {
+  @apply leading-snug;
+}
 .highlighted-text {
     background-color: #fff3cd;
     border-bottom: 2px solid #ffc107;
