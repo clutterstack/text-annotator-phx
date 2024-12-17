@@ -170,7 +170,6 @@ defmodule AnnotatorWeb.TextAnnotator do
         chunk_groups = get_chunk_groups(collection.lines)
         # Logger.debug("After rechunk - line count: #{length(collection.lines)}")
         # Logger.debug("After rechunk - chunks: #{inspect(Enum.map(collection.lines, & &1.chunk_id))}")
-        %JS{} |> JS.dispatch("annotator:scroll-to-chunk", detail: %{chunk_start: chunk_start})
         {:noreply, socket
           |> assign(
             collection: collection,
@@ -250,14 +249,6 @@ defmodule AnnotatorWeb.TextAnnotator do
     end
   end
 
-  defp scroll_to_chunk(socket, chunk_start) do
-    Logger.info("scroll_to_chunk function invoked")
-    %JS{}
-    |> JS.dispatch("annotator:scroll-to-chunk", detail: %{chunk_start: chunk_start})
-  end
-
-
-
   defp new_collection(name) do
     {:ok, new_collection} = Lines.create_collection(%{name: name})
     Lines.append_chunk(new_collection.id)
@@ -286,7 +277,6 @@ defmodule AnnotatorWeb.TextAnnotator do
       value
     end
   end
-
 
   defp get_chunk_groups(lines) do
     # returns a list of {chunk, lines} tuples
