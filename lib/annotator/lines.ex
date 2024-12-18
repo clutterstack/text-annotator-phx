@@ -148,27 +148,17 @@ defmodule Annotator.Lines do
   """
   def split_or_merge_chunks(collection_id, start_line, end_line) do
     Logger.info("Starting split_or_merge_chunks with start_line: #{inspect(start_line)}, end_line: #{inspect(end_line)}")
+    Repo.transaction(fn ->
+      case find_affected_chunks(collection_id, start_line, end_line) do
+        {:ok, [first_chunk | other_chunks]} ->
+          Logger.info("calling reorganize_multiple_chunks")
 
-    # First validate basic params
-    changeset = %Chunk{}
-    |> Chunk.changeset(
-      %{
-        "collection_id" => collection_id,
-        "start_line" => start_line,
-        "end_line" => end_line,
-        "note" => ""
-      })
-      Repo.transaction(fn ->
-        case find_affected_chunks(collection_id, start_line, end_line) do
-          {:ok, [first_chunk | other_chunks]} ->
-            Logger.info("calling reorganize_multiple_chunks")
+          # Multiple chunks - use first as working chunk
+          reorganize_multiple_chunks(first_chunk, other_chunks, start_line, end_line)
 
-            # Multiple chunks - use first as working chunk
-            reorganize_multiple_chunks(first_chunk, other_chunks, start_line, end_line)
-
-          {:error, _} = error -> Repo.rollback(error)
-        end
-      end)
+        {:error, _} = error -> Repo.rollback(error)
+      end
+    end)
   end
 
   defp create_chunk(collection_id, start_line, end_line, note) do
@@ -336,54 +326,6 @@ end
       |> Repo.update_all(set: [chunk_id: updated_chunk.id])
 
       {:ok, updated_chunk}
-    end)
-  end
-
-  @doc """
-  Deletes a line and updates related chunks and line numbers.
-  """
-  def delete_line(collection_id, line_id) do
-    Repo.transaction(fn ->
-      line = Repo.get_by!(Line, id: line_id, collection_id: collection_id)
-      chunk = Repo.get!(Chunk, line.chunk_id)
-
-      # Delete the line
-      Repo.delete(line)
-
-      # Update line numbers for subsequent lines
-      from(l in Line,
-        where: l.collection_id == ^collection_id and
-               l.line_number > ^line.line_number
-      )
-      |> Repo.update_all(inc: [line_number: -1])
-
-     # Update chunks that start after the deleted line
-      from(c in Chunk,
-      where: c.collection_id == ^collection_id and c.start_line > ^line.line_number
-      )
-      |> Repo.update_all(inc: [start_line: -1])
-
-      # Update chunks that end after the deleted line
-      from(c in Chunk,
-      where: c.collection_id == ^collection_id and c.end_line > ^line.line_number
-      )
-      |> Repo.update_all(inc: [end_line: -1])
-      # If this was the only line in the chunk, delete the chunk
-      if chunk.start_line == chunk.end_line do
-        Repo.delete(chunk)
-      else
-        # Otherwise update the chunk's range
-        chunk_updates = if line.line_number == chunk.end_line do
-          [end_line: chunk.end_line - 1]
-        else
-          [start_line: chunk.start_line - 1]
-        end
-
-        from(c in Chunk, where: c.id == ^chunk.id)
-        |> Repo.update_all(set: chunk_updates)
-      end
-
-      line
     end)
   end
 

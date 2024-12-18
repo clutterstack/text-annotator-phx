@@ -1,8 +1,6 @@
 defmodule AnnotatorWeb.TextAnnotator do
   use AnnotatorWeb, :live_view
   alias Annotator.Lines
-  alias Phoenix.LiveView.JS
-
   import AnnotatorWeb.AnnotatorComponents
   require Logger
 

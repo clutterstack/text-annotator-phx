@@ -11,24 +11,29 @@ export const GridNav = {
 
     console.log("maxRow: "+ this.config.maxRow + "; maxCol: " + this.config.maxCol);
 
+    if (this.config.mode == "author") {
+    // Only need special mouse events for editing, not for read-only
     // Bind event handlers
-    this.handleKeyUp = this.handleKeyUp.bind(this);
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseOver = this.handleMouseOver.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
 
-    this.el.addEventListener('keyup', this.handleKeyUp);
+    // Add event handlers
     this.el.addEventListener('mousedown', this.handleMouseDown);
     this.el.addEventListener('mouseup', this.handleMouseUp);
+    }
+
+    this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.el.addEventListener('keyup', this.handleKeyUp);
   },
 
   updated() {
-    console.log("DOM refreshed by LiveView")
-    // this.resetConfig();
+    //console.log("DOM refreshed by LiveView")
   },
 
   resetConfig() {
     console.log("before resetConfig(). this.config.lineCount = " + this.config.lineCount)
+
     this.config = {
       mode: this.el.dataset.mode,
       lineCount: this.el.querySelectorAll('[data-line-number]').length,
@@ -41,7 +46,6 @@ export const GridNav = {
       firstSelectedLine: null,
       currentLine: null
     }
-
   },
 
 

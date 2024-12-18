@@ -227,7 +227,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   def editor(assigns) do
     ~H"""
     <div id={"editor-#{@row_index}-#{@col_name}"}
-        phx-hook="CtrlEnter"
+        phx-hook="EditKeys"
         data-row-index={@row_index}
         data-col-name={@col_name}
         data-chunk-id={@chunk_id}
