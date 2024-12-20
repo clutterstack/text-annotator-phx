@@ -43,34 +43,26 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
 
   def render(assigns) do
     ~H"""
-    <.back navigate={~p"/collections"}>Back to collections</.back>
-    <div class="w-full">
-      <.new_collection_modal :if={!@collection} form={@form} />
-
-      <div :if={@collection} class="space-y-8">
-        <div class="mx-auto max-w-4xl">
-          <.name_form for={@form} phx-submit="rename_collection">
-            <.input class="grow" field={@form[:name]} label="Collection Name" required />
-            <:actions>
-              <.button phx-disable-with="Renaming...">Rename collection</.button>
-            </:actions>
-          </.name_form>
-        </div>
-        <.anno_grid
-          mode="author"
-          chunk_groups={@chunk_groups}
-          editing={@editing}
-          selection={@selection}
-        >
-          <:col name="line-span" label="Chunk lines" editable={false} deletable={false}></:col>
-          <:col name="line-num" label="Line" editable={false} deletable={false}></:col>
-          <:col name="content" label="Content" editable={true} deletable={true}></:col>
-          <:col name="note" label="Note" editable={true} deletable={false}></:col>
-        </.anno_grid>
-        <.link navigate={~p"/collections/#{@collection.id}/export/html"}>View as HTML</.link>
-      </div>
-
-
+    <div class="w-full space-y-8">
+      <.name_form for={@form} phx-submit="rename_collection">
+        <.input class="grow" field={@form[:name]} label="Collection Name" required />
+        <:actions>
+          <.button phx-disable-with="Renaming...">Rename collection</.button>
+        </:actions>
+      </.name_form>
+      <.anno_grid
+        mode="author"
+        chunk_groups={@chunk_groups}
+        editing={@editing}
+        selection={@selection}
+      >
+        <:col name="line-span" label="Chunk lines" editable={false} deletable={false}></:col>
+        <:col name="line-num" label="Line" editable={false} deletable={false}></:col>
+        <:col name="content" label="Content" editable={true} deletable={true}></:col>
+        <:col name="note" label="Note" editable={true} deletable={false}></:col>
+      </.anno_grid>
+      <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML table</.link>
+      <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
     </div>
     """
   end
@@ -242,32 +234,6 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
     {:noreply, assign(socket, selection: nil)}
   end
 
-  def handle_event("create_collection", %{"name" => name}, socket) do
-    case new_collection(name) do
-      {:ok, collection} ->
-        new_collection = Lines.get_collection_with_assocs(collection.id)
-        new_id = collection.id
-
-        {:noreply,
-         socket
-         |> assign(
-           collection: new_collection,
-           chunk_groups: get_chunk_groups(new_collection.lines),
-           # Start in edit mode for content
-           editing: {"0", "2"},
-           selection: nil
-         )
-         |> push_navigate(to: ~p"/collections/#{new_id}")
-         |> put_flash(:info, "Collection created successfully")}
-
-      {:error, changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, error_to_string(changeset))
-         |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
-    end
-  end
-
   def handle_event("rename_collection", %{"name" => name}, socket) do
     case rename_collection(socket.assigns.collection.id, name) do
       {:ok, collection} ->
@@ -288,12 +254,6 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
          |> put_flash(:error, error_to_string(changeset))
          |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
     end
-  end
-
-  defp new_collection(name) do
-    {:ok, new_collection} = Lines.create_collection(%{name: name})
-    Lines.append_chunk(new_collection.id)
-    {:ok, new_collection}
   end
 
   defp rename_collection(id, name) do

@@ -225,7 +225,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           <% end %>
         </div>
       <% "note" -> %>
-        <%= @chunk.note || "No note" %>
+        <%= Phoenix.HTML.raw Earmark.as_html!(@chunk.note, breaks: true) || "No note" %>
       <% _ -> %>
         <%= if @col do %>
           <%= inspect(@col) %>

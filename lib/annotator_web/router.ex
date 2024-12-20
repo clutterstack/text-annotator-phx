@@ -18,7 +18,7 @@ defmodule AnnotatorWeb.Router do
     pipe_through :browser
     live "/", CollectionLive.Index
     live "/collections", CollectionLive.Index
-    live "/collections/new", TextAnnotatorLive
+    live "/collections/new", NewCollectionLive
     live "/collections/:id", TextAnnotatorLive
     get "/collections/:id/export/html", ExportController, :html_table
     get "/collections/:id/export/md", ExportController, :markdown_table

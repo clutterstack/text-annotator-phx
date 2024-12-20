@@ -88,7 +88,7 @@ defmodule AnnotatorWeb.ExportComponents do
                   <% end %>
                 </td>
                 <td class="notes" style={"grid-row-end: span #{Enum.count(lines)};"}>
-                  <%= if chunk.note && chunk.note != "", do: chunk.note, else: "-" %>
+                 <%= Phoenix.HTML.raw Earmark.as_html!(chunk.note, breaks: true) || "No note" %>
                 </td>
               </tr>
             <% end %>
