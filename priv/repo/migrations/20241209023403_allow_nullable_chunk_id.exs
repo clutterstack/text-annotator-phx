@@ -7,7 +7,8 @@ defmodule Annotator.Repo.Migrations.AllowNullableChunkId do
       add :line_number, :integer, null: false
       add :content, :string
       add :collection_id, references(:collections), null: false
-      add :chunk_id, references(:chunks), null: true  # This is now nullable
+      # This is now nullable
+      add :chunk_id, references(:chunks), null: true
       timestamps(type: :utc_datetime)
     end
 

@@ -14,7 +14,8 @@ defmodule Annotator.Repo.Migrations.InitialSchema do
     # Lines table - stores the actual content
     create table(:lines) do
       add :line_number, :integer, null: false
-      add :content, :string, size: :infinity  # Use size: :infinity for long text
+      # Use size: :infinity for long text
+      add :content, :string, size: :infinity
       add :collection_id, references(:collections, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)
@@ -25,7 +26,8 @@ defmodule Annotator.Repo.Migrations.InitialSchema do
 
     # Chunks table - groups of lines that share a note
     create table(:chunks) do
-      add :note, :string, size: :infinity  # Use size: :infinity for long text
+      # Use size: :infinity for long text
+      add :note, :string, size: :infinity
       add :collection_id, references(:collections, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)

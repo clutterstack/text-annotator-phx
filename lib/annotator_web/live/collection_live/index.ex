@@ -4,10 +4,12 @@ defmodule AnnotatorWeb.CollectionLive.Index do
 
   def mount(_params, _session, socket) do
     collections = Lines.list_collections()
-    {:ok, assign(socket,
-      collections: collections,
-      page_title: "Collections"
-    )}
+
+    {:ok,
+     assign(socket,
+       collections: collections,
+       page_title: "Collections"
+     )}
   end
 
   def render(assigns) do
@@ -27,16 +29,28 @@ defmodule AnnotatorWeb.CollectionLive.Index do
         <table class="min-w-full divide-y divide-zinc-200">
           <thead class="bg-zinc-50">
             <tr>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider"
+              >
                 Name
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider"
+              >
                 ID
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider"
+              >
                 Lines
               </th>
-              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider"
+              >
                 Created
               </th>
               <th scope="col" class="relative px-6 py-3">

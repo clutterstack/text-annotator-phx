@@ -1,4 +1,4 @@
-defmodule AnnotatorWeb.PageHTML do
+defmodule AnnotatorWeb.ExportHTML do
   @moduledoc """
   This module contains pages rendered by PageController.
 
@@ -6,5 +6,5 @@ defmodule AnnotatorWeb.PageHTML do
   """
   use AnnotatorWeb, :html
 
-  embed_templates "page_html/*"
+  embed_templates "export_html/*"
 end

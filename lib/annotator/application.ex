@@ -11,8 +11,7 @@ defmodule Annotator.Application do
       AnnotatorWeb.Telemetry,
       Annotator.Repo,
       {Ecto.Migrator,
-        repos: Application.fetch_env!(:annotator, :ecto_repos),
-        skip: skip_migrations?()},
+       repos: Application.fetch_env!(:annotator, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:annotator, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Annotator.PubSub},
       # Start a worker by calling: Annotator.Worker.start_link(arg)

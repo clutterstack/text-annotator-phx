@@ -1,5 +1,4 @@
 defmodule Annotator.TextChunker do
-
   @moduledoc """
   Splits text chunks based on position and length, respecting line boundaries.
   Returns both the chunks and the new position within the relevant chunk.
@@ -37,18 +36,20 @@ defmodule Annotator.TextChunker do
   """
   @spec split_text_chunk(String.t(), non_neg_integer(), non_neg_integer()) :: chunk_result
   def split_text_chunk("", position, _length), do: {[""], position}
-  def split_text_chunk(text, position, 0) when position in [0, byte_size(text)], do: {[text], position}
+
+  def split_text_chunk(text, position, 0) when position in [0, byte_size(text)],
+    do: {[text], position}
 
   def split_text_chunk(text, position, length) do
     # Find all newline positions, including virtual ones at start and end
     newline_positions =
       [-1] ++
-      (text
-      |> String.graphemes()
-      |> Enum.with_index()
-      |> Enum.filter(fn {char, _idx} -> char == "\n" end)
-      |> Enum.map(fn {_char, idx} -> idx end)) ++
-      [String.length(text)]
+        (text
+         |> String.graphemes()
+         |> Enum.with_index()
+         |> Enum.filter(fn {char, _idx} -> char == "\n" end)
+         |> Enum.map(fn {_char, idx} -> idx end)) ++
+        [String.length(text)]
 
     cond do
       # Split from start
@@ -61,7 +62,10 @@ defmodule Annotator.TextChunker do
 
       # Split in middle
       true ->
-        Logger.info("split_text_chunk: text, position, length, newline_positions: #{inspect [text, position, length, newline_positions]}")
+        Logger.info(
+          "split_text_chunk: text, position, length, newline_positions: #{inspect([text, position, length, newline_positions])}"
+        )
+
         Logger.info("string length: #{String.length(text)}")
         split_in_middle(text, position, length, newline_positions)
     end
@@ -71,15 +75,18 @@ defmodule Annotator.TextChunker do
     end_line_end =
       newline_positions
       |> Enum.find(fn pos -> pos >= length end)
+
     # Position stays at 0 in first chunk
     [
       {String.slice(text, 0..end_line_end), 0},
-      {String.slice(text, (end_line_end + 1)..-1//1), nil} # the //1 is to avoid negative steps; elixir gave me a warning about that
+      # the //1 is to avoid negative steps; elixir gave me a warning about that
+      {String.slice(text, (end_line_end + 1)..-1//1), nil}
     ]
   end
 
   defp split_from_end(text, _length, newline_positions) do
     text_length = String.length(text)
+
     start_line_start =
       newline_positions
       |> Enum.reverse()
@@ -103,10 +110,12 @@ defmodule Annotator.TextChunker do
 
     # Find line boundaries for end position
     end_pos = position + length
+
     end_line_end =
       newline_positions
       |> Enum.find(fn pos -> pos >= end_pos end)
-      # |> IO.inspect(label: "END_LINE_END")
+
+    # |> IO.inspect(label: "END_LINE_END")
 
     # Calculate new position within middle chunk
     new_position = position - (start_line_start - 1)
@@ -116,6 +125,5 @@ defmodule Annotator.TextChunker do
       {String.slice(text, (start_line_start - 1)..end_line_end), new_position},
       {String.slice(text, (end_line_end + 1)..-1//1), nil}
     ]
-
   end
 end
