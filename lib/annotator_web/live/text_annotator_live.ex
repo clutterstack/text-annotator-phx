@@ -43,7 +43,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
 
   def render(assigns) do
     ~H"""
-    <div class="w-full space-y-8">
+    <div id="collection-container" class="w-full space-y-8" phx-hook="Highlighter">
       <.name_form for={@form} phx-submit="rename_collection">
         <.input class="grow" field={@form[:name]} label="Collection Name" required />
         <:actions>

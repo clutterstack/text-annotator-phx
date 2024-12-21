@@ -103,23 +103,30 @@ defmodule AnnotatorWeb.ExportComponents do
     ~H"""
     | Line | Content | Notes |
     |---|---|---|
-    <%= for {chunk, lines} <- @chunk_groups do %>
-      |
-      <%= for line <- Enum.drop(lines, -1) do %>
-        <%= line.line_number %><br />
-      <% end %>
-      <%= for line <- Enum.take(lines, -1) do %>
-        <%= line.line_number %>
-      <% end %>
-      |
-      <%= for line <- Enum.drop(lines, -1) do %>
-        <%= line.content %><br />
-      <% end %>
-      <%= for line <- Enum.take(lines, -1) do %>
-        <%= line.content %>
-      <% end %>
-      | <%= if chunk.note && chunk.note != "", do: chunk.note, else: "-" %> |
+    <%= for {chunk, lines} <- @chunk_groups do %>|<pre><code><%= line_nums(%{lines: lines}) %></code></pre> |<pre><code><%= chunk_content(%{lines: lines}) %></code></pre>| <%= chunk_note(%{paras: paras(chunk.note)}) %> |
     <% end %>
     """
   end
+
+  defp line_nums(assigns) do
+    ~H"""
+      <%= for line <- Enum.drop(@lines, -1) do %><%= line.line_number %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= line.line_number %><% end %>
+    """
+    # <%= Enum.map(@lines, fn line -> "  #{line.line_number}\n" end) %>
+#
+  end
+  defp chunk_content(assigns) do
+    ~H"""
+      <%= for line <- Enum.drop(@lines, -1) do %><%= html_escape line.content |> String.replace("|", "\\|") %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= line.content |> String.replace("|", "\|") %><% end %>
+    """
+  end
+
+  defp chunk_note(assigns) do
+    ~H"""
+    <%= for para <- Enum.drop(@paras, -1) do%><%= para %><br><% end %><%= for para <- Enum.take(@paras, -1) do%><%= para %><% end%>
+    """
+  end
+
+  defp paras(note), do: if(note != nil, do: String.split(note, "\n"), else: [""])
+
 end

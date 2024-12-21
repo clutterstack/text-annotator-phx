@@ -1,12 +1,14 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+@import "../vendor/highlight.js/styles/a11y-light.css";
 
 /* This file is for your main application CSS */
 
 body {
   @apply leading-snug;
 }
+
 .highlighted-text {
     background-color: #fff3cd;
     border-bottom: 2px solid #ffc107;

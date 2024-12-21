@@ -69,7 +69,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 data-deletable={col[:deletable]}
                 aria-label={get_aria_label(col, lines, chunk)}
                 class={[
-                  "p-1 min-h-[3rem] z-30 focus:bg-fuchsia-600",
+                  "z-30 focus:bg-fuchsia-600",
                   col_index != length(@col) - 1 && "border-r",
                   col[:editable] && @mode !== "read-only" &&
                     "hover:cursor-pointer hover:bg-zinc-100/50 editable",
@@ -183,6 +183,19 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   def cell_content(assigns) do
     ~H"""
     <%= case @col[:name] do %>
+      <% "line-span" -> %>
+        <div>
+          <%= if @row_lines == [] do %>
+            <%= "0" %>
+          <% else %>
+            <%= case length(@row_lines) do %>
+              <% 1 -> %>
+                <%= List.first(@row_lines).line_number %>
+              <% _ -> %>
+                <%= "#{List.first(@row_lines).line_number}-#{List.last(@row_lines).line_number}" %>
+            <% end %>
+          <% end %>
+        </div>
       <% "line-num" -> %>
         <%= for line <- Enum.sort(@row_lines, &(&1.line_number <= &2.line_number)) do %>
           <div
@@ -202,30 +215,19 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       <% "content" -> %>
         <%= for line <- @row_lines do %>
           <div
-            class="hover:bg-zinc-100/50 self-start"
+            class="hover:bg-zinc-100/50 self-start px-2"
             role="presentation"
             phx-click={JS.focus(to: "#cell-#{@row_index}-#{@col_index}")}
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code><%= line.content %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class="language-elixir"><%= line.content %></code></pre>
           </div>
         <% end %>
-      <% "line-span" -> %>
-        <div>
-          <%= if @row_lines == [] do %>
-            <%= "0" %>
-          <% else %>
-            <%= case length(@row_lines) do %>
-              <% 1 -> %>
-                <%= List.first(@row_lines).line_number %>
-              <% _ -> %>
-                <%= "#{List.first(@row_lines).line_number}-#{List.last(@row_lines).line_number}" %>
-            <% end %>
-          <% end %>
-        </div>
       <% "note" -> %>
-        <%= Phoenix.HTML.raw Earmark.as_html!(@chunk.note, breaks: true) || "No note" %>
+        <div class="py-2 leading-6">
+          <%= Phoenix.HTML.raw Earmark.as_html!(@chunk.note, breaks: true) || "No note" %>
+        </div>
       <% _ -> %>
         <%= if @col do %>
           <%= inspect(@col) %>
@@ -256,6 +258,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     ~H"""
     <div
       id={"editor-#{@row_index}-#{@col_name}"}
+      class="min-h-[3rem]"
       phx-hook="EditKeys"
       data-row-index={@row_index}
       data-col-name={@col_name}
