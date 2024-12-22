@@ -24,7 +24,7 @@ defmodule AnnotatorWeb.NewCollectionLive do
   def handle_event("create_collection", %{"name" => name}, socket) do
     case new_collection(name) do
       {:ok, collection} ->
-        new_id = collection.id
+        # new_id = collection.id
 
         {:noreply,
          socket

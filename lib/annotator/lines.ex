@@ -407,9 +407,9 @@ defmodule Annotator.Lines do
 
   # Private helper functions
 
-  defp create_initial_chunk(collection_id, line) do
-    create_chunk(collection_id, line.line_number, line.line_number, "")
-  end
+  # defp create_initial_chunk(collection_id, line) do
+  #   create_chunk(collection_id, line.line_number, line.line_number, "")
+  # end
 
   @doc """
   Returns the list of collections.
@@ -457,21 +457,21 @@ defmodule Annotator.Lines do
     |> Repo.one() || -1
   end
 
-  defp shift_lines_up(collection_id, from_line_number) do
-    from(l in Line,
-      where: l.collection_id == ^collection_id and l.line_number >= ^from_line_number
-    )
-    |> Repo.update_all(inc: [line_number: 1])
+  # defp shift_lines_up(collection_id, from_line_number) do
+  #   from(l in Line,
+  #     where: l.collection_id == ^collection_id and l.line_number >= ^from_line_number
+  #   )
+  #   |> Repo.update_all(inc: [line_number: 1])
 
-    # Also update any affected chunks
-    from(c in Chunk,
-      where: c.collection_id == ^collection_id and c.start_line >= ^from_line_number
-    )
-    |> Repo.update_all(inc: [start_line: 1])
+  #   # Also update any affected chunks
+  #   from(c in Chunk,
+  #     where: c.collection_id == ^collection_id and c.start_line >= ^from_line_number
+  #   )
+  #   |> Repo.update_all(inc: [start_line: 1])
 
-    from(c in Chunk,
-      where: c.collection_id == ^collection_id and c.end_line >= ^from_line_number
-    )
-    |> Repo.update_all(inc: [end_line: 1])
-  end
+  #   from(c in Chunk,
+  #     where: c.collection_id == ^collection_id and c.end_line >= ^from_line_number
+  #   )
+  #   |> Repo.update_all(inc: [end_line: 1])
+  # end
 end

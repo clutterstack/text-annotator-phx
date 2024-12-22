@@ -1,5 +1,4 @@
 defmodule Annotator.SharedHelpers do
-  alias Annotator.Lines
 
   def get_chunk_groups(lines) do
     # returns a list of {chunk, lines} tuples

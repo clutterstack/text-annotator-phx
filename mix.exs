@@ -58,7 +58,10 @@ defmodule Annotator.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:uuid, "~> 1.1"},
-      {:earmark, "~>1.4.47"}
+      {:earmark, "~>1.4.47"},
+      {:makeup, "~>1.2.1"},
+      {:makeup_elixir, "~>1.0.1"},
+      {:makeup_eex, "~>1.0.0"}
     ]
   end
 

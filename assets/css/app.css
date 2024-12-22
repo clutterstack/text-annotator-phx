@@ -2,6 +2,8 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 @import "../vendor/highlight.js/styles/a11y-light.css";
+@import "../../priv/static/assets/makeup_friendly.css";
+
 
 /* This file is for your main application CSS */
 

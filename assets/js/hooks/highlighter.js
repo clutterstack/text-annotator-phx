@@ -16,13 +16,11 @@ import json from '../../vendor/highlight.js/lib/languages/json';
 import diff from '../../vendor/highlight.js/lib/languages/diff';
 import xml from '../../vendor/highlight.js/lib/languages/xml';
 
-
 export const Highlighter = {
 
   mounted() {
 
-    // Yeah, this isn't very sexy, but I'm trying to keep the bundle small
-    // by only opting into languages I use in blog posts.
+    // And register the languages we imported
     hljs.registerLanguage('javascript', javascript);
     hljs.registerLanguage('shell', shell);
     hljs.registerLanguage('bash', bash);
@@ -34,12 +32,24 @@ export const Highlighter = {
     hljs.registerLanguage('diff', diff);
     hljs.registerLanguage('html', xml);
 
-    function highlightAll(where = document) {
-      // Custom function using hljs.highlight() because
-      // hljs.highlightElement() and hljs.highlightAll()
-      // do stuff to the background and spacing.
-      where.querySelectorAll('pre code').forEach((el) => {
-        console.log("Got a class: " + el.classList)
+
+    // Highlight code blocks on page load (hook mount)
+    this.highlightAll();
+  },
+
+  updated() {this.highlightAll();},
+
+  highlightAll(where = document) {
+    // Custom function using hljs.highlight() because
+    // hljs.highlightElement() and hljs.highlightAll()
+    // do stuff to the background and spacing.
+
+    // highlightjs does have elixir but doesn't have heex
+    // I'll use makeup for elixir and heex, so don't highlight
+    // anything that has makeup in the class name
+    where.querySelectorAll('pre code').forEach((el) => {
+      if (!el.classList.contains('makeup')) {
+        // console.log("Got a class: " + el.classList)
         const languageClass = Array.from(el.classList).find(className => 
           className.startsWith('language-')
         );
@@ -49,10 +59,8 @@ export const Highlighter = {
           const { value: value } = hljs.highlight(el.innerText, {language: lang, ignoreIllegals: true});
           el.innerHTML = value;
         }
-      });
-    }
+      }
+    });
+  }
+}
 
-    // Highlight code blocks on page load (hook mount)
-    highlightAll();
-    }
-  };

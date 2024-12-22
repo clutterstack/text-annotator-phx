@@ -1,5 +1,6 @@
 defmodule AnnotatorWeb.AnnotatorComponents do
   use Phoenix.Component
+  use AnnotatorWeb, :html
   import AnnotatorWeb.CoreComponents
   alias Phoenix.LiveView.JS
   require Logger
@@ -221,7 +222,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code class="language-elixir"><%= line.content %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class="language-elixir"><%= raw highlight_elixir(line.content) %></code></pre>
           </div>
         <% end %>
       <% "note" -> %>
@@ -236,6 +237,10 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         <% end %>
     <% end %>
     """
+  end
+
+  defp highlight_elixir(content) do
+    content |> Makeup.highlight_inner_html()
   end
 
   defp is_line_selected?(line, selection) when not is_nil(selection) do
@@ -314,14 +319,14 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   def new_collection_modal(assigns) do
     ~H"""
     <.modal id="collection-name-modal" show={true}>
-        <.simple_form for={@form} phx-submit="create_collection">
-          <.input field={@form[:name]} label="Collection Name" required />
-          <:actions>
-            <.button phx-disable-with="Creating...">Create Collection</.button>
-          </:actions>
-        </.simple_form>
-     </.modal>
-     """
+      <.simple_form for={@form} phx-submit="create_collection">
+        <.input field={@form[:name]} label="Collection Name" required />
+        <:actions>
+          <.button phx-disable-with="Creating...">Create Collection</.button>
+        </:actions>
+      </.simple_form>
+    </.modal>
+    """
   end
 
 end

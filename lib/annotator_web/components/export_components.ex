@@ -14,7 +14,6 @@ defmodule AnnotatorWeb.ExportComponents do
           .annotated-code {
                   width: 100%;
                   border-collapse: collapse;
-                  font-family: ui-monospace, monospace;
                   margin: 2em 0;
               }
 
@@ -38,15 +37,17 @@ defmodule AnnotatorWeb.ExportComponents do
               padding-right: 1em;
               white-space: pre;
               width: 1%;
+              /*font-family: ui-monospace, monospace;*/
+
           }
 
           .content pre {
-              margin: 0;
+              /*margin: 0;*/
               white-space: pre-wrap;
           }
 
           .content code {
-              font-family: ui-monospace, monospace;
+            /*  font-family: ui-monospace, monospace;*/
           }
 
           .notes {
@@ -78,14 +79,10 @@ defmodule AnnotatorWeb.ExportComponents do
             <%= for {chunk, lines} <- @chunk_groups do %>
               <tr>
                 <td class="line-numbers">
-                  <%= for line <- lines do %>
-                    <%= line.line_number %><br />
-                  <% end %>
+                    <pre><code><%= line_nums(%{lines: lines}) %></code></pre>
                 </td>
                 <td class="content">
-                  <%= for line <- lines do %>
-                    <pre><code><%= line.content %></code></pre>
-                  <% end %>
+                    <pre><code><%=chunk_content(%{lines: lines, format: "html"}) %></code></pre>
                 </td>
                 <td class="notes" style={"grid-row-end: span #{Enum.count(lines)};"}>
                  <%= Phoenix.HTML.raw Earmark.as_html!(chunk.note, breaks: true) || "No note" %>
@@ -103,7 +100,7 @@ defmodule AnnotatorWeb.ExportComponents do
     ~H"""
     | Line | Content | Notes |
     |---|---|---|
-    <%= for {chunk, lines} <- @chunk_groups do %>|<pre><code><%= line_nums(%{lines: lines}) %></code></pre> |<pre><code><%= chunk_content(%{lines: lines}) %></code></pre>| <%= chunk_note(%{paras: paras(chunk.note)}) %> |
+    <%= for {chunk, lines} <- @chunk_groups do %>|<pre><code><%= line_nums(%{lines: lines}) %></code></pre> |<pre><code><%= chunk_content(%{lines: lines, format: "md"}) %></code></pre>| <%= chunk_note(%{paras: paras(chunk.note)}) %> |
     <% end %>
     """
   end
@@ -117,8 +114,20 @@ defmodule AnnotatorWeb.ExportComponents do
   end
   defp chunk_content(assigns) do
     ~H"""
-      <%= for line <- Enum.drop(@lines, -1) do %><%= html_escape line.content |> String.replace("|", "\\|") %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= line.content |> String.replace("|", "\|") %><% end %>
+      <%= for line <- Enum.drop(@lines, -1) do %><%= escape_if_md(line.content, @format) %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= escape_if_md(line.content, @format) %><% end %>
     """
+  end
+
+  defp escape_if_md(string, format) do
+    if format == "md" do
+      string
+      |> String.replace("|", "\|") # the first backslash escapes the second one which we need in the output to escape the pipe when the markdown itself gets interpreted
+      |> String.replace("\\", "\\\\")
+      # |> IO.puts()
+    else
+      string
+      |> html_escape()
+    end
   end
 
   defp chunk_note(assigns) do
