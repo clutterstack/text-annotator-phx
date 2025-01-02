@@ -5,7 +5,7 @@ defmodule Annotator.Lines.Line do
 
   schema "lines" do
     field :line_number, :integer
-    field :content, :string
+    field :content, :string, default: ""
     belongs_to :collection, Annotator.Lines.Collection
     belongs_to :chunk, Annotator.Lines.Chunk, on_replace: :nilify
     timestamps(type: :utc_datetime)

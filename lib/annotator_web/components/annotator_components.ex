@@ -240,7 +240,11 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
 
   defp highlight_elixir(content) do
-    content |> Makeup.highlight_inner_html()
+    if is_binary(content) do
+      content |> Makeup.highlight_inner_html()
+    else
+      ""
+    end
   end
 
   defp is_line_selected?(line, selection) when not is_nil(selection) do
