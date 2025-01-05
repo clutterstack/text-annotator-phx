@@ -6,8 +6,11 @@ export const GridNav = {
   mounted() {
 
     this.config = {};
+    this.state = {};
+    this.state.currentLine = this.el.dataset.latestline;
 
     this.resetConfig();
+    window.highlightAll(this.el);
 
     console.log("maxRow: "+ this.config.maxRow + "; maxCol: " + this.config.maxCol);
 
@@ -28,11 +31,23 @@ export const GridNav = {
   },
 
   updated() {
-    //console.log("DOM refreshed by LiveView")
+    console.log("DOM refreshed by LiveView");
+    this.config.lineCount = this.el.querySelectorAll('[data-line-number]').length;
+    this.config.maxRow = this.el.querySelectorAll('[role="row"]').length - 2;
+    this.state.currentLine = this.el.dataset.latestline; // Not sure I need to do this on updated...maybe
+    console.log("in updated fn: currentLine is " + this.state.currentLine);
+    window.highlightAll(this.el);
+    this.styleSelected("#ddffdd", this.state.firstSelectedLine, this.state.currentLine);
+    this.focusLineParent(this.state.currentLine);
+
   },
 
   resetConfig() {
     console.log("before resetConfig(). this.config.lineCount = " + this.config.lineCount)
+
+    console.log("before resetConfig(). this.state.firstSelectedLine = " + this.state.firstSelectedLine)
+
+    console.log("before resetConfig(). this.state.currentLine = " + this.state.currentLine)
 
     this.config = {
       mode: this.el.dataset.mode,
@@ -40,14 +55,13 @@ export const GridNav = {
       maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
       maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
     }
-
-    this.state = {
-      isLineSelecting: false,
-      firstSelectedLine: null,
-      currentLine: null
-    }
+    
+    this.selectionClear();
+    if (this.state.currentLine != null) {
+      this.focusLineParent(this.state.currentLine);
+      }
+    console.log("end of resetConfig: currentLine is " + this.state.currentLine);
   },
-
 
   getCellAt(rowIndex, colIndex) {
     const element = document.querySelector(`[data-col-index="${colIndex}"][data-row-index="${rowIndex}"]`);
@@ -78,6 +92,15 @@ export const GridNav = {
     if (targetCell) targetCell.focus();
   },
 
+  focusLineParent(line_num) {
+    const line_class = '.line-' + line_num;
+    console.log("line_class is " + line_class);
+    const line_el = this.el.querySelector('.line-' + line_num);
+    const targetCell = line_el.closest(line_class);
+    console.log("targetCell classlist: " + targetCell.classList)
+    if (targetCell) targetCell.focus();
+  },
+
   handleArrowNav(key) {
     const directions = {
       ArrowUp: [-1, 0],
@@ -93,48 +116,29 @@ export const GridNav = {
     const [rowDelta, colDelta] = directions[key];
     const newRow = Math.max(0, Math.min(this.config.maxRow, cellRow + rowDelta));
     const newCol = Math.max(0, Math.min(this.config.maxCol, cellCol + colDelta));
-    console.log("Arrow to " + newRow + ", " + newCol);
+    console.log("Arrow to " + newRow + ", " + newCol + " from " + cellRow + ", " + cellCol + ".");
     this.focusCell(newRow, newCol);
   },
 
-  selectionMode(lineNumber) {
-    // Enter selecting mode; don't start a selection
-    console.log("selectionMode called with lineNumber " + lineNumber + " of type " + typeof(lineNumber))
-    this.state.isLineSelecting = true;
-  },
-
   selectionStart(lineNumber) {
-
     this.state.firstSelectedLine = lineNumber;
+    this.state.currentLine = lineNumber;
     console.log("selectionStart changed this.state.firstSelectedLine to " + this.state.firstSelectedLine + " with type " + typeof(this.state.firstSelectedLine));
-
-    this.pushEvent('start_selection', {
-      start: lineNumber,
-      end: lineNumber
-    });
-  },
-    
-  selectionUpdate(start, end) {
-    this.pushEvent('update_selection', { start, end });
+    console.log("selectionStart changed this.state.currentLine to " + this.state.currentLine + " with type " + typeof(this.state.currentLine));
   },
 
   selectionClear() {
-    // console.log("selectionClear invoked; setting isLineSelecting to false")
+    console.log
+    this.unstyleSelected();
     this.state.isLineSelecting = false;
     this.state.firstSelectedLine = null;
-    this.state.currentLine = null;
-    
-    document.querySelectorAll('.selectedline')
-      .forEach(el => el.classList.remove('selectedline'));
-    
-    this.pushEvent('cancel_selection', {});
-  },
+    console.log("in selectionClear: this.state.currentLine is " + this.state.currentLine);
+    },
 
   submitChunk() {
     console.log("submitChunk: pushing rechunk event")
-    this.pushEvent("rechunk");
+    this.pushEvent('rechunk', {start: this.state.firstSelectedLine, end: this.state.currentLine});
     this.resetConfig();
-
   },
 
   handleChunkSelection(key) {
@@ -165,22 +169,54 @@ export const GridNav = {
     console.log("nextLine is " + nextLine)
     const nextEl = document.querySelector(`[data-line-number="${nextLine}"]`);
 
-if (nextEl) {
-  nextEl.focus();
-} else {
-  console.error('Element not found for data-line-number:', nextLine);
-}
+    if (nextEl) {
+      nextEl.focus();
+    } else {
+      console.error('Element not found for data-line-number:', nextLine);
+    }
     // console.log("nextEl classlist: " + nextEl.classList);
     console.log("nextEl.dataset.lineNumber: " + nextEl.dataset.lineNumber + " of type " + typeof(nextEl.dataset.lineNumber));
+    this.state.currentLine = nextLine;
     nextEl.focus();
-    nextEl.classList.add("selectedline");
+    // nextEl.classList.add("selectedline");
     console.log("nextEl: " + nextEl);
 
     if (this.state.firstSelectedLine !== null) {
       console.log("Updating selection by arrow keys. this.state.firstSelectedLine is " + this.state.firstSelectedLine + ", type " + typeof(this.state.firstSelectedLine) + " and last line selected is " + nextLine + ", type " + typeof(nextLine))
+      this.styleSelected();
 
-      this.selectionUpdate(this.state.firstSelectedLine, nextLine);
+      // this.selectionUpdate(this.state.firstSelectedLine, nextLine);
     }
+  },
+
+  styleSelected(color = "#dd33dd", num1 = this.state.firstSelectedLine, num2 = this.state.currentLine) {
+    console.log("In styleSelected, num1 = " + num1 + " and num2 = " + num2)
+    if (typeof num1 === 'number' && num1 >= 0) {
+      for (let i = num1; i <= num2; i++) {
+        const elements = document.querySelectorAll(`.line-${i}`);
+        elements.forEach(el => {
+          console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
+          el.style.backgroundColor = color;
+          console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
+
+        });
+      }
+    }
+  },
+
+  unstyleSelected(num1 = this.state.firstSelectedLine, num2 = this.state.currentLine) {
+    console.log("in unstyleSelected. num1 is " + num1 + " and num2 is " + num2)
+    // if (num1 >= 0) {
+      for (let i = num1; i <= num2; i++) {
+        const elements = document.querySelectorAll(`.line-${i}`);
+        elements.forEach(el => {
+          console.log("element style: " + el.style.backgroundColor);
+          // el.style.backgroundColor = color;
+          el.removeAttribute("style");
+          console.log("element style: " + el.style.backgroundColor);
+        });
+      }
+    // }
   },
 
   // Event handlers
@@ -217,10 +253,8 @@ if (nextEl) {
       const lineNumber = Number(lineNumberEl.innerText);
       console.log("mousedown at " + lineNumber);
       lineNumberEl.focus();
-      this.selectionMode(lineNumber);
+      this.state.isLineSelecting = true;
       this.selectionStart(lineNumber);
-      this.state.currentLine = lineNumber;
-
       this.el.addEventListener('mouseover', this.handleMouseOver);
     };
   },
@@ -232,45 +266,38 @@ if (nextEl) {
     e.preventDefault();
     console.log("handleMouseOver");
     // console.log("mouseover at " + e.target.closest(".line-number").innerText);
-    // linenumber.classList.remove("selectedline"); // in case I'm duplicating this class
     const thisLine = Number(lineNumberEl.innerText);
     const linediff = thisLine - this.state.currentLine;
     console.log("linediff: " + linediff );
-    if (linediff > 0) {
-      console.log("linediff is " + linediff + ". Adding class selectedline.")
-      lineNumberEl.classList.add("selectedline");
-    } else if (linediff < 0) {
-      console.log("linediff is " + linediff + ". Removing class selectedline.")
-      lineNumberEl.classList.remove("selectedline");
-    }
     this.state.currentLine = thisLine;
 
-    console.log("mouseover at " + thisLine + ". this.state.currentLine updated to " + this.state.currentLine + " with type " + typeof(this.state.currentLine))
+
+    console.log("mouseover at " + thisLine + ". this.state.currentLine updated to " + this.state.currentLine + " with type " + typeof(this.state.currentLine));
+    this.styleSelected();
+
   },
 
   handleMouseUp(e) {
     console.log("mouseup");
     if (!e.target.closest(".line-number")) {
       console.log("got a mouseup outside of a line-number element");
-      // this.el.addEventListener('mouseup', this.handleMouseUp, {once: true});
       this.selectionClear();
       this.el.removeEventListener('mouseover', this.handleMouseOver);
       return;
     }
-    console.log("mouseup is updating selection. this.state.firstSelectedLine is type " + typeof(this.state.firstSelectedLine) + " and this.state.currentLine is type " + typeof(this.state.currentLine))
-    this.selectionUpdate(this.state.firstSelectedLine, this.state.currentLine);
-    
-    this.submitChunk();
-    this.selectionClear();
-    //this.focusCell(0,1);
-    this.el.removeEventListener('mouseover', this.handleMouseOver);
+    if (this.state.firstSelectedLine !== null) {
+      console.log("in handleMouseUp: this.state.firstSelectedLine is " + this.state.firstSelectedLine + " with type " + typeof(this.state.firstSelectedLine) + " and this.state.currentLine is " + this.state.currentLine + " with type " + typeof(this.state.currentLine));
+      this.styleSelected();
+
+      this.submitChunk();
+      this.el.removeEventListener('mouseover', this.handleMouseOver);
+    }
   },
 
   handleEscape() {
     if (this.state.isLineSelecting) {
       console.log("escapeKey: this.state.isLineSelecting was true")
       this.selectionClear();
-      //this.focusCell(0,1);
     } else {
       console.log("escape -- focus whole grid");
       this.el.focus();
@@ -285,7 +312,6 @@ if (nextEl) {
         this.focusCell(0,1);
       } 
       else { 
-        // console.log("classes: " + document.activeElement.classList);
         if (activeEl.classList.contains("editable")) {
           // console.log("activeEl.dataset.rowIndex: " + Number(activeEl.dataset.rowIndex))
           const cellRow = Number(activeEl.dataset.rowIndex);
@@ -297,13 +323,10 @@ if (nextEl) {
           lineNumberEl = activeEl.firstElementChild;
           if (!lineNumberEl) return;
           lineNumberEl.focus();
-          lineNumber = parseInt(lineNumberEl.dataset.lineNumber);
-          this.selectionMode(lineNumber);
+          this.state.isLineSelecting = true;
         }
-        else if (this.state.isLineSelecting == true) {
+        else if (this.state.isLineSelecting == true && this.state.firstSelectedLine !== null) {
           this.submitChunk();
-          //this.focusCell(0,1);
-          this.selectionClear();
         }
       }  
     }

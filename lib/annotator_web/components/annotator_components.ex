@@ -10,6 +10,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :selection, :any, default: nil
   # attr :lines, :list, required: true
   attr :chunk_groups, :list, required: true
+  attr :lang, :string, default: ""
+  attr :latestline, :string, default: "0"
 
   slot :col, required: true do
     attr :label, :string
@@ -21,12 +23,14 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   def anno_grid(assigns) do
     # Logger.info("lines assign: #{inspect assigns.lines}")
     ~H"""
+    <div><%= "Mode: #{@mode}" %></div>
     <div
       class="w-full grid grid-cols-[min-content_min-content_1fr_1fr] items-start rounded-lg border"
       role="grid"
       tabindex="0"
       id="annotated-content"
       phx-hook="GridNav"
+      data-latestline={@latestline || 0}
       data-mode={@mode}
       aria-multiselectable="true"
     >
@@ -70,7 +74,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 data-deletable={col[:deletable]}
                 aria-label={get_aria_label(col, lines, chunk)}
                 class={[
-                  "z-30 focus:bg-fuchsia-600",
+                  "grid-cell z-30 focus:bg-fuchsia-400",
+                  col[:name],
                   col_index != length(@col) - 1 && "border-r",
                   col[:editable] && @mode !== "read-only" &&
                     "hover:cursor-pointer hover:bg-zinc-100/50 editable",
@@ -93,6 +98,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                     col_index={col_index}
                     chunk={chunk}
                     row_lines={lines}
+                    lang={@lang}
                   />
                 <% end %>
               </div>
@@ -180,6 +186,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :selection, :any, default: nil
   attr :row_index, :string
   attr :col_index, :string
+  attr :lang, :string, default: ""
 
   def cell_content(assigns) do
     ~H"""
@@ -202,7 +209,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           <div
             class={[
               "line-#{line.line_number}",
-              "line-number hover:bg-zinc-100/50 focus:bg-fuchsia-600 rounded cursor-pointer z-40 min-h-4 self-start"
+              "line-number hover:bg-zinc-200/100 focus:bg-fuchsia-400 rounded cursor-pointer z-40 min-h-4"
             ]}
             role="button"
             tabindex="-1"
@@ -216,17 +223,17 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       <% "content" -> %>
         <%= for line <- @row_lines do %>
           <div
-            class="hover:bg-zinc-100/50 self-start px-2"
+            class="content-line ml-2"
             role="presentation"
             phx-click={JS.focus(to: "#cell-#{@row_index}-#{@col_index}")}
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code class="language-elixir"><%= raw highlight_elixir(line.content) %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class={"language-#{@lang}"}><%= raw highlight_elixir(line.content) %></code></pre>
           </div>
         <% end %>
       <% "note" -> %>
-        <div class="py-2 leading-6">
+        <div class="py-2 px-4">
           <%= Phoenix.HTML.raw Earmark.as_html!(@chunk.note, breaks: true) || "No note" %>
         </div>
       <% _ -> %>

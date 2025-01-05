@@ -25,8 +25,11 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
            collection: collection,
            chunk_groups: get_chunk_groups(collection.lines),
            editing: nil,
-           selection: nil,
-           form: to_form(%{"name" => collection.name})
+          #  selection: nil,
+           lang: "",
+           name_form: to_form(%{"name" => collection.name}),
+           lang_form: to_form(%{"lang" => ""}),
+           latestline: 0
          )}
     end
   end
@@ -36,25 +39,32 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      assign(socket,
        collection: nil,
        editing: [0, 1],
-       selection: nil,
+      #  selection: nil,
        form: to_form(%{"name" => ""})
      )}
   end
 
   def render(assigns) do
     ~H"""
-    <div id="collection-container" class="w-full space-y-8" phx-hook="Highlighter">
-      <.name_form for={@form} phx-submit="rename_collection">
-        <.input class="grow" field={@form[:name]} label="Collection Name" required />
+    <div id="collection-container" class="w-full space-y-8">
+      <.name_form for={@name_form} phx-submit="rename_collection">
+        <.input class="grow" field={@name_form[:name]} label="Collection Name" required />
         <:actions>
           <.button phx-disable-with="Renaming...">Rename collection</.button>
+        </:actions>
+      </.name_form>
+      <.name_form for={@lang_form} phx-submit="set_collection_lang">
+        <.input class="grow" field={@lang_form[:lang]} label="Lang" />
+        <:actions>
+          <.button phx-disable-with="Setting language">Set lang</.button>
         </:actions>
       </.name_form>
       <.anno_grid
         mode="author"
         chunk_groups={@chunk_groups}
         editing={@editing}
-        selection={@selection}
+        lang={@lang}
+        latestline={@latestline}
       >
         <:col name="line-span" label="Chunk lines" editable={false} deletable={false}></:col>
         <:col name="line-num" label="Line" editable={false} deletable={false}></:col>
@@ -102,11 +112,6 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      assign(socket,
        editing: nil
      )}
-  end
-
-  def handle_event("cancel_selection", _params, socket) do
-    Logger.debug("cancel_selection handler triggered")
-    {:noreply, assign(socket, selection: nil)}
   end
 
   def handle_event(
@@ -164,20 +169,15 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
     end
   end
 
-  def handle_event("rechunk", _, socket) do
-    Logger.info("socket.assigns.selection: #{inspect(socket.assigns.selection)}")
-
-    %{start_line: chunk_start, end_line: chunk_end} = socket.assigns.selection
+  def handle_event("rechunk", %{"start" => chunk_start, "end" => chunk_end}, socket) do
+    Logger.info("chunk_end given to rechunk is #{chunk_end}")
     collection_id = socket.assigns.collection.id
 
-    Logger.debug(
+    Logger.info(
       "are chunk_start and chunk_end binaries? chunk_start: #{inspect(is_binary(chunk_start))}; #{inspect(is_binary(chunk_end))}"
     )
 
-    # Log before state
-    # collection_before = Lines.get_collection_with_assocs(collection_id)
-    # Logger.info("Before rechunk - chunks: #{inspect(Enum.map(collection_before.lines, & &1.chunk_id))}")
-    # Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
+    Logger.info("Attempting to rechunk lines #{chunk_start} through #{chunk_end}")
 
     case Lines.split_or_merge_chunks(collection_id, chunk_start, chunk_end) do
       {:ok, _} ->
@@ -193,9 +193,10 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
             collection: collection,
             # lines: collection.lines,
             chunk_groups: chunk_groups,
-            selection: nil,
+            # selection: nil,
             # Update this just to be on the safe side
-            editing: nil
+            editing: nil,
+            latestline: chunk_end
           )
           # |> scroll_to_chunk(chunk_start)
         }
@@ -203,36 +204,37 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, error_to_string(reason))
-         |> assign(selection: nil)}
+         |> put_flash(:error, error_to_string(reason))}
+        #  |> assign(selection: nil)}
     end
   end
 
-  def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
-    {:noreply,
-     assign(socket,
-       selection: %{
-         start_line: start_line,
-         end_line: end_line
-       }
-     )}
-  end
+  # def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
+  #   {:noreply,
+  #    assign(socket,
+  #      selection: %{
+  #        start_line: start_line,
+  #        end_line: end_line
+  #      }
+  #    )}
+  # end
 
-  def handle_event("update_selection", %{"start" => start_line, "end" => end_line}, socket) do
-    Logger.info("updating line selection to #{start_line} - #{end_line}")
+  # def handle_event("update_selection", %{"start" => start_line, "end" => end_line}, socket) do
+  #   Logger.info("updating line selection to #{start_line} - #{end_line}")
 
-    {:noreply,
-     assign(socket,
-       selection: %{
-         start_line: start_line,
-         end_line: end_line
-       }
-     )}
-  end
+  #   {:noreply,
+  #    assign(socket,
+  #      selection: %{
+  #        start_line: start_line,
+  #        end_line: end_line
+  #      }
+  #    )}
+  # end
 
-  def handle_event("clear_selection", _params, socket) do
-    {:noreply, assign(socket, selection: nil)}
-  end
+  # def handle_event("cancel_selection", _params, socket) do
+  #   Logger.debug("cancel_selection handler triggered")
+  #   {:noreply, assign(socket, selection: nil)}
+  # end
 
   def handle_event("rename_collection", %{"name" => name}, socket) do
     case rename_collection(socket.assigns.collection.id, name) do
@@ -255,6 +257,25 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
          |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
     end
   end
+
+  def handle_event("set_collection_lang", %{"lang" => lang}, socket) do
+    {:noreply, socket |> assign(lang: lang)}
+    ## TODO: make sure this makes sense and activate it once schema can support it
+    # case set_lang(socket.assigns.collection.id, lang) do
+    #   {:ok, collection} -> {:noreply, assign(socket, collection.lang: lang)}
+    #   {:error, changeset} ->
+    #     {:noreply,
+    #      socket
+    #      |> put_flash(:error, error_to_string(changeset))
+    #      |> assign(form: to_form(Map.put(socket.assigns.form.data, "lang", lang)))}
+    # end
+  end
+
+  # # TODO: change the schema to store a language for highlighting
+  # defp set_lang(id, lang) do
+  #   collection = Lines.get_collection!(id)
+  #   Lines.update_collection(collection, %{lang: lang})
+  # end
 
   defp rename_collection(id, name) do
     collection = Lines.get_collection!(id)

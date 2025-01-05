@@ -21,16 +21,13 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
-import { Highlighter } from "./hooks/highlighter"
-import { SelectText } from "./hooks/select_text"
+import "../vendor/highlighter"
 import { GridNav } from "./hooks/grid_nav"
 import { EditKeys } from "./hooks/edit_keys"
 
 let Hooks = {
-  SelectText: SelectText,
   GridNav: GridNav,
-  EditKeys: EditKeys,
-  Highlighter: Highlighter
+  EditKeys: EditKeys
 }
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
