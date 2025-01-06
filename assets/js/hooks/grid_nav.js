@@ -142,6 +142,7 @@ export const GridNav = {
   },
 
   handleChunkSelection(key) {
+    // console.log("handleChunkSelection: shiftKey is " + shiftKey + " with type " + typeof(shiftKey))
     lineNumStr = document.activeElement.dataset.lineNumber;
     if (!lineNumStr) {
       console.log("handleChunkSelection couldn't get a line number from the element")
@@ -149,7 +150,7 @@ export const GridNav = {
     }
     lineNum = Number(lineNumStr);
     console.log("lineNum in handleChunkSelection is " + lineNum)
-    if (key === ' ') {
+    if (key == 'V') {
       console.log("space key in chunkSelection")
       if (this.state.firstSelectedLine == null) {
         // Start new selection
@@ -231,7 +232,7 @@ export const GridNav = {
       Enter: () => this.handleEnter(),
       default: () => {
         if (this.state.isLineSelecting) {
-          this.handleChunkSelection(e.key, e.shiftKey);
+          this.handleChunkSelection(e.key); //, e.shiftKey
         } else {
           this.handleArrowNav(e.key);
         }
