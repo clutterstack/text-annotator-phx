@@ -209,33 +209,6 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
     end
   end
 
-  # def handle_event("start_selection", %{"start" => start_line, "end" => end_line}, socket) do
-  #   {:noreply,
-  #    assign(socket,
-  #      selection: %{
-  #        start_line: start_line,
-  #        end_line: end_line
-  #      }
-  #    )}
-  # end
-
-  # def handle_event("update_selection", %{"start" => start_line, "end" => end_line}, socket) do
-  #   Logger.info("updating line selection to #{start_line} - #{end_line}")
-
-  #   {:noreply,
-  #    assign(socket,
-  #      selection: %{
-  #        start_line: start_line,
-  #        end_line: end_line
-  #      }
-  #    )}
-  # end
-
-  # def handle_event("cancel_selection", _params, socket) do
-  #   Logger.debug("cancel_selection handler triggered")
-  #   {:noreply, assign(socket, selection: nil)}
-  # end
-
   def handle_event("rename_collection", %{"name" => name}, socket) do
     case rename_collection(socket.assigns.collection.id, name) do
       {:ok, collection} ->
@@ -254,28 +227,28 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         {:noreply,
          socket
          |> put_flash(:error, error_to_string(changeset))
-         |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))}
+         |> assign(form: to_form(Map.put(socket.assigns.form.data, "name", name)))} # this came from an LLM. I think it puts the name back into the form for another try...
     end
   end
 
   def handle_event("set_collection_lang", %{"lang" => lang}, socket) do
     {:noreply, socket |> assign(lang: lang)}
     ## TODO: make sure this makes sense and activate it once schema can support it
-    # case set_lang(socket.assigns.collection.id, lang) do
-    #   {:ok, collection} -> {:noreply, assign(socket, collection.lang: lang)}
-    #   {:error, changeset} ->
-    #     {:noreply,
-    #      socket
-    #      |> put_flash(:error, error_to_string(changeset))
-    #      |> assign(form: to_form(Map.put(socket.assigns.form.data, "lang", lang)))}
-    # end
+    case set_lang(socket.assigns.collection.id, lang) do
+      {:ok, _collection} -> {:noreply, assign(socket, lang: lang)}
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, error_to_string(changeset))
+         |> assign(form: to_form(Map.put(socket.assigns.form.data, "lang", lang)))}
+    end
   end
 
   # # TODO: change the schema to store a language for highlighting
-  # defp set_lang(id, lang) do
-  #   collection = Lines.get_collection!(id)
-  #   Lines.update_collection(collection, %{lang: lang})
-  # end
+  defp set_lang(id, lang) do
+    collection = Lines.get_collection!(id)
+    Lines.update_collection(collection, %{lang: lang})
+  end
 
   defp rename_collection(id, name) do
     collection = Lines.get_collection!(id)
