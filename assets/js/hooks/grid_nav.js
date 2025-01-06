@@ -198,8 +198,8 @@ export const GridNav = {
           console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
           el.style.backgroundColor = color;
           console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
-
         });
+        document.querySelector(`.line-${num2 + 1}`).removeAttribute("style");
       }
     }
   },
