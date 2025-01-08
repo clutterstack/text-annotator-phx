@@ -20,16 +20,16 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         # chunks = get_collection_chunks(collection.lines)
         # May want mode to be an assign too...certainly if we're going to
         # change it in the UI...though maybe we won't.
+        Logger.info("in TextAnnotatorLive mount function, lang is #{collection.lang}")
         {:ok,
          assign(socket,
            collection: collection,
            chunk_groups: get_chunk_groups(collection.lines),
            editing: nil,
-          #  selection: nil,
-           lang: "",
+           lang: collection.lang,
            name_form: to_form(%{"name" => collection.name}),
-           lang_form: to_form(%{"lang" => ""}),
-           latestline: 0
+           lang_form: to_form(%{"lang" => collection.lang}),
+           latestline: nil
          )}
     end
   end
@@ -39,12 +39,13 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      assign(socket,
        collection: nil,
        editing: [0, 1],
-      #  selection: nil,
-       form: to_form(%{"name" => ""})
+       name_form: to_form(%{"name" => ""}),
+       lang_form: to_form(%{"lang" => ""})
      )}
   end
 
   def render(assigns) do
+    # Logger.info("running render fn of textAnnotatorLive; lang assign is #{assigns.lang}. collection.lang is #{assigns.collection.lang}.")
     ~H"""
     <div id="collection-container" class="w-full space-y-8">
       <.name_form for={@name_form} phx-submit="rename_collection">
@@ -232,7 +233,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
   end
 
   def handle_event("set_collection_lang", %{"lang" => lang}, socket) do
-    {:noreply, socket |> assign(lang: lang)}
+    # {:noreply, socket |> assign(lang: lang)}
     ## TODO: make sure this makes sense and activate it once schema can support it
     case set_lang(socket.assigns.collection.id, lang) do
       {:ok, _collection} -> {:noreply, assign(socket, lang: lang)}

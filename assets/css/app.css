@@ -123,3 +123,7 @@ a {
   .line-number.selectedline {
     @apply bg-fuchsia-200 hover:bg-fuchsia-400;
   }
+
+  .text-sm p {
+    @apply mb-2;
+  }

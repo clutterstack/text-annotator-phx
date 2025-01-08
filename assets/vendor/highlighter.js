@@ -49,9 +49,8 @@ window.highlightAll = function(where = document) {
         className.startsWith('language-')
       );
       const lang = languageClass?.replace('language-', '');
-      console.log("Got a lang: " + lang)
       if (lang != null && hljs.getLanguage(lang) != null) {
-        console.log("Lang supported by hljs! " + lang)
+        // console.log("Lang supported by hljs! " + lang)
         const { value: value } = hljs.highlight(el.innerText, {language: lang, ignoreIllegals: true});
         el.innerHTML = value;
       }

@@ -1,7 +1,17 @@
 export const EditKeys = {
     mounted() {
-        textEl = this.el.firstElementChild;
-        textEl.focus();
+        this.parentCellEl = this.el.closest('.grid-cell');
+        console.log("EditKeys hook activated on mount. Active element has id " + document.activeElement.id);
+        const textEl = document.activeElement.querySelector('textarea');
+        if (textEl) {
+            textEl.focus();
+        }
+        else {
+            console.error("textarea element not found")
+        }
+        console.log("Active element has classList " + document.activeElement.classList);
+        console.log("Active element has id " + document.activeElement.id);
+
         textEl.setSelectionRange(-1, -1);
         textEl.addEventListener('keydown', (e) => {
             // Using keydown simply because MacOs apparently doesn't emit 
@@ -37,5 +47,10 @@ export const EditKeys = {
                 cell.focus();
             }
         })
+      },
+
+      destroyed() {
+        this.parentCellEl.focus();
+        this.el.removeEventListener('keydown', onkeydown);
       }
 }

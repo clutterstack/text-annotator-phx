@@ -11,7 +11,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   # attr :lines, :list, required: true
   attr :chunk_groups, :list, required: true
   attr :lang, :string, default: ""
-  attr :latestline, :string, default: "0"
+  attr :latestline, :string, default: nil
 
   slot :col, required: true do
     attr :label, :string
@@ -22,6 +22,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
 
   def anno_grid(assigns) do
     # Logger.info("lines assign: #{inspect assigns.lines}")
+    Logger.info("anno_grid log: lang assign? #{inspect assigns.lang}")
     ~H"""
     <div><%= "Mode: #{@mode}" %></div>
     <div
@@ -30,7 +31,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       tabindex="0"
       id="annotated-content"
       phx-hook="GridNav"
-      data-latestline={@latestline || 0}
+      data-latestline={@latestline != nil && @latestline}
       data-mode={@mode}
       aria-multiselectable="true"
     >
@@ -108,13 +109,26 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       </div>
     </div>
 
-    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard shortcuts">
-      <p>Press <kbd>Space</kbd> to start selection</p>
-      <p>
-        Use <kbd>↑</kbd> <kbd>↓</kbd> to navigate, <kbd>Shift + ↑/↓</kbd> to select multiple lines
-      </p>
-      <p>Press <kbd>n</kbd> to add a note to selected lines</p>
-      <p>Press <kbd>Esc</kbd> to cancel selection</p>
+
+    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Mouse interactions">
+      <p><strong>Mouse interaction</strong></p>
+      <p>To focus a content or note grid cell, click it.</p>
+      <p>To edit a focused content or note grid cell, click it.</p>
+      <p>To split or merge grid rows, click and drag line numbers. Clicking a single line number gives that line its own row.</p>
+      <p>To cancel a line-number range selection, mouseup outside of the line-numbers column</p>
+    </div>
+
+    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
+      <p><strong>Keyboard interaction</strong></p>
+      <p>To navigate between grid cells, use arrow keys.</p>
+      <p>To edit a focused content or note grid cell, press <kbd>Enter</kbd>.</p>
+      <p>To split or merge grid rows:</p>
+      <p>    Enter line-number navigation mode by pressing <kbd>Enter</kbd> with a line-numbers cell focused.</p>
+      <p>    Use up and down arrow keys to move between line numbers.</p>
+      <p>    To begin a selection at a focused line number, press <kbd>V</kbd> (that's <kbd>Shift</kbd>-<kbd>v</kbd>).</p>
+      <p>    To expand or contract the selection, use the up and down arrow keys.</p>
+      <p>    To submit the selection, press <kbd>Enter</kbd>.</p>
+      <p>    To clear and cancel the selection, press <kbd>Esc</kbd>.</p>
     </div>
     """
   end
