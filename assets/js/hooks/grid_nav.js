@@ -356,9 +356,14 @@ export const GridNav = {
       this.focusLine(this.state.currentLine);
       this.focusLineParent()
       this.selectionClear();
+    } else if (document.activeElement === this.el) {
+      console.log("escape -- blur #annotated-content div")
+      this.el.blur();
+      this.logActiveEl();
     } else {
       console.log("escape -- focus whole grid");
       this.el.focus();
+      this.logActiveEl();
     }
     return;
   },
@@ -380,6 +385,7 @@ export const GridNav = {
         if (!lineNumberEl) return;
         lineNumberEl.focus();
         this.state.isLineSelecting = true;
+        this.state.currentLine = lineNumberEl.dataset.lineNumber;
       }
       else if (this.state.isLineSelecting == true && this.state.firstSelectedLine !== null) {
         this.submitChunk();
