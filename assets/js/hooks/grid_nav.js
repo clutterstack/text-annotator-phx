@@ -17,7 +17,7 @@ export const GridNav = {
 
     // console.log("maxRow: "+ this.config.maxRow + "; maxCol: " + this.config.maxCol);
     console.log("In mounted function (after resetConfig)")
-    this.logActiveEl();
+    // this.logActiveEl();
 
     if (this.config.mode == "author") {
       if (this.el.dataset.latestline) {
@@ -51,7 +51,7 @@ export const GridNav = {
         this.focusLineParent();
         }
     }
-    this.logActiveEl();
+    // this.logActiveEl();
     this.config.maxRow = this.el.querySelectorAll('[role="row"]').length - 2;
     window.highlightAll(this.el);
 
@@ -132,7 +132,7 @@ export const GridNav = {
     const targetCell = line_el.closest(line_class);
     console.log("targetCell classlist: " + targetCell.classList)
     if (targetCell) targetCell.focus();
-    this.logActiveEl();
+    // this.logActiveEl();
   },
 
   focusLineParent() {
@@ -140,7 +140,7 @@ export const GridNav = {
       console.log("focusLineParent: active element is a line number; focus the parent cell");
       document.activeElement.parentElement.focus();
     }
-    this.logActiveEl();
+    // this.logActiveEl();
   },
 
   handleArrowNav(key) {
@@ -268,7 +268,10 @@ export const GridNav = {
   handleKeyDown(e) {
     // console.log("handleKeyDown triggered with key " + e.key)
     if (this.isEditing()) return;
-    
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Escape', 'Enter', 'V'].includes(e.key)) {
+      console.log("Got a key that grid_nav doesn't handle");
+      return; // This allows default behaviour for all other keys
+    }
     e.preventDefault();
 
     const handlers = {
@@ -290,7 +293,7 @@ export const GridNav = {
     const lineNumberEl = e.target.closest('.line-number');
     const activeEl = document.activeElement;
     console.log("handleMouseDown")
-    this.logActiveEl();
+    // this.logActiveEl();
     if (this.config.mode == "author") { 
       if (lineNumberEl !== null) {
         e.preventDefault();
@@ -359,11 +362,11 @@ export const GridNav = {
     } else if (document.activeElement === this.el) {
       console.log("escape -- blur #annotated-content div")
       this.el.blur();
-      this.logActiveEl();
+      // this.logActiveEl();
     } else {
       console.log("escape -- focus whole grid");
       this.el.focus();
-      this.logActiveEl();
+      // this.logActiveEl();
     }
     return;
   },
@@ -371,7 +374,7 @@ export const GridNav = {
   handleEnter() {
     activeEl = document.activeElement;
     console.log("handleEnter");
-    this.logActiveEl();
+    // this.logActiveEl();
     if (activeEl == this.el) {
       this.focusCell(0,1);
     }
