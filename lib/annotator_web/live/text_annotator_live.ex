@@ -23,13 +23,14 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         Logger.info("in TextAnnotatorLive mount function, lang is #{collection.lang}")
         {:ok,
          assign(socket,
-           collection: collection,
-           chunk_groups: get_chunk_groups(collection.lines),
-           editing: nil,
-           lang: collection.lang,
-           name_form: to_form(%{"name" => collection.name}),
-          #  lang_form: to_form(%{"lang" => collection.lang}),
-           latestline: nil
+          collection: collection,
+          chunk_groups: get_chunk_groups(collection.lines),
+          editing: nil,
+          mode: "author",
+          lang: collection.lang,
+          name_form: to_form(%{"name" => collection.name}),
+          lang_form: to_form(%{"lang" => collection.lang}),
+          latestline: nil
          )}
     end
   end
@@ -39,7 +40,9 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      assign(socket,
        collection: nil,
        editing: [0, 1],
-       name_form: to_form(%{"name" => ""})
+       name_form: to_form(%{"name" => ""}),
+       lang_form: to_form(%{"lang" => ""}),
+       mode: "author"
      )}
   end
 
@@ -51,22 +54,53 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         <.name_input field={@name_form[:name]}/>
         <.button class="self-center" aria-label="Rename collection" phx-disable-with="Renaming...">Rename</.button>
       </.name_form>
-      <.anno_grid
-        mode="author"
-        chunk_groups={@chunk_groups}
-        editing={@editing}
-        lang={@lang}
-        lang_form={to_form(%{"lang" => @lang})}
-        latestline={@latestline}
-        collection_id={@collection.id}
-      >
-        <:col name="line-span" label="Chunk lines" editable={false} deletable={false}></:col>
-        <:col name="line-num" label="Line" editable={false} deletable={false}></:col>
-        <:col name="content" label="Content" editable={true} deletable={true}></:col>
-        <:col name="note" label="Note" editable={true} deletable={false}></:col>
-      </.anno_grid>
+      <div class="flex justify-between">
+        <div class="self-center flex">Mode: <pre><%= " #{@mode}" %></pre>
+        </div>
+        <.horiz_form for={@lang_form} phx-submit="set_collection_lang">
+          <.horiz_input field={@lang_form[:lang]} />
+          <.button aria-label="Set language" class="text-sm font-light ml-2" phx-disable-with="Setting language">Set language</.button>
+        </.horiz_form>
+      </div>
+
+      <div class="grid grid-cols-[min-content_4fr_3fr]">
+        <.anno_grid
+          mode={@mode}
+          chunk_groups={@chunk_groups}
+          editing={@editing}
+          lang={@lang}
+          latestline={@latestline}
+          collection_id={@collection.id}
+        >
+          <:col name="line-num" label="Line" editable={false} deletable={false}></:col>
+          <:col name="content" label="Content" editable={true} deletable={true}></:col>
+          <:col name="note" label="Note" editable={true} deletable={false}></:col>
+        </.anno_grid>
+
+      </div>
       <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML table</.link>
-      <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
+        <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>]
+      <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
+      <p><strong>Keyboard interaction</strong></p>
+      <p>To navigate between grid cells, use arrow keys.</p>
+      <p>To edit a focused content or note grid cell, press <kbd>Enter</kbd>.</p>
+      <p>To split or merge grid rows:</p>
+      <p>    Enter line-number navigation mode by pressing <kbd>Enter</kbd> with a line-numbers cell focused.</p>
+      <p>    Use up and down arrow keys to move between line numbers.</p>
+      <p>    To begin a selection at a focused line number, press <kbd>V</kbd> (that's <kbd>Shift</kbd>-<kbd>v</kbd>).</p>
+      <p>    To expand or contract the selection, use the up and down arrow keys.</p>
+      <p>    To submit the selection, press <kbd>Enter</kbd>.</p>
+      <p>    To clear and cancel the selection, press <kbd>Esc</kbd>.</p>
+    </div>
+
+
+    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Mouse interactions">
+      <p><strong>Mouse interaction</strong></p>
+      <p>To focus a content or note grid cell, click it.</p>
+      <p>To edit a focused content or note grid cell, click it.</p>
+      <p>To split or merge grid rows, click and drag line numbers. Clicking a single line number gives that line its own row.</p>
+      <p>To cancel a line-number range selection, mouseup outside of the line-numbers column</p>
+    </div>
     </div>
     """
   end
@@ -78,7 +112,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
 
     case col_index_str do
       # Content column
-      "2" ->
+      "1" ->
         Logger.info(
           "start_edit in content cell; should start editing {#{row_index_str}, #{col_index_str}}"
         )
@@ -87,7 +121,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         {:noreply, assign(socket, editing: {row_index_str, col_index_str})}
 
       # Note column
-      "3" ->
+      "2" ->
         Logger.info(
           "start_edit in note cell; at row_index_str {#{row_index_str}} and col_index_str {#{col_index_str}}"
         )

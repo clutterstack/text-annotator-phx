@@ -26,15 +26,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     # Logger.info("lines assign: #{inspect assigns.lines}")
     Logger.info("anno_grid log: lang assign? #{inspect assigns.lang}")
     ~H"""
-    <div class="flex justify-between">
-        <div class="self-center flex">Mode: <pre><%= " #{@mode}" %></pre></div>
-        <.horiz_form for={@lang_form} phx-submit="set_collection_lang">
-          <.horiz_input field={@lang_form[:lang]} />
-          <.button aria-label="Set language" class="text-sm font-light ml-2" phx-disable-with="Setting language">Set language</.button>
-        </.horiz_form>
-      </div>
     <div
-      class="w-full grid grid-cols-[min-content_min-content_4fr_3fr] items-start rounded-lg border"
+      class="w-full grid grid-cols-subgrid col-span-full items-start rounded-lg border"
       role="grid"
       tabindex="0"
       id={"annotated-content-#{@collection_id}"}
@@ -43,22 +36,22 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       data-mode={@mode}
       aria-multiselectable="true"
     >
-      <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
-        <div role="row" class="grid grid-cols-subgrid col-span-4 border-b bg-zinc-50">
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-full">
+        <div role="row" class="grid grid-cols-subgrid col-span-full border-b bg-zinc-50">
           <div :for={col <- @col} role="columnheader" class="p-1 text-sm font-medium text-zinc-500">
             <%= col[:label] %>
           </div>
         </div>
       </div>
 
-      <div role="rowgroup" class="grid grid-cols-subgrid col-span-4">
+      <div role="rowgroup" class="grid grid-cols-subgrid col-span-full">
         <%= for {group, row_index} <- Enum.with_index(@chunk_groups) do %>
           <% {chunk, lines} = group %>
           <div
             role="row"
             class={
               [
-                "grid grid-cols-subgrid col-span-4",
+                "grid grid-cols-subgrid col-span-full",
                 "hover:bg-zinc-50",
                 row_index != length(@chunk_groups) - 1 && "border-b",
                 # Add selected state styling
@@ -86,7 +79,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                   "grid-cell z-30 focus:bg-fuchsia-400",
                   col[:name],
                   col_index != length(@col) - 1 && "border-r",
-                  col[:editable] && @mode !== "read-only" &&
+                  col[:editable] && @mode === "author" &&
                     "hover:cursor-pointer hover:bg-zinc-100/50 editable",
                   col[:name] in ["line-num", "content"] && "grid grid-rows-subgrid"
                 ]}
@@ -117,27 +110,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       </div>
     </div>
 
-
-    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Mouse interactions">
-      <p><strong>Mouse interaction</strong></p>
-      <p>To focus a content or note grid cell, click it.</p>
-      <p>To edit a focused content or note grid cell, click it.</p>
-      <p>To split or merge grid rows, click and drag line numbers. Clicking a single line number gives that line its own row.</p>
-      <p>To cancel a line-number range selection, mouseup outside of the line-numbers column</p>
-    </div>
-
-    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
-      <p><strong>Keyboard interaction</strong></p>
-      <p>To navigate between grid cells, use arrow keys.</p>
-      <p>To edit a focused content or note grid cell, press <kbd>Enter</kbd>.</p>
-      <p>To split or merge grid rows:</p>
-      <p>    Enter line-number navigation mode by pressing <kbd>Enter</kbd> with a line-numbers cell focused.</p>
-      <p>    Use up and down arrow keys to move between line numbers.</p>
-      <p>    To begin a selection at a focused line number, press <kbd>V</kbd> (that's <kbd>Shift</kbd>-<kbd>v</kbd>).</p>
-      <p>    To expand or contract the selection, use the up and down arrow keys.</p>
-      <p>    To submit the selection, press <kbd>Enter</kbd>.</p>
-      <p>    To clear and cancel the selection, press <kbd>Esc</kbd>.</p>
-    </div>
     """
   end
 
