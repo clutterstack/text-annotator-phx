@@ -34,7 +34,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
       phx-hook="GridNav"
       data-latestline={@latestline != nil && @latestline}
       data-mode={@mode}
-      aria-multiselectable="true"
     >
       <div role="rowgroup" class="grid grid-cols-subgrid col-span-full">
         <div role="row" class="grid grid-cols-subgrid col-span-full border-b bg-zinc-50">
@@ -54,12 +53,9 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 "grid grid-cols-subgrid col-span-full",
                 "hover:bg-zinc-50",
                 row_index != length(@chunk_groups) - 1 && "border-b",
-                # Add selected state styling
-                is_selected?(lines, @selection) && "bg-blue-50"
               ]
             }
             style={rowspanstyle(lines)}
-            aria-selected={is_selected?(lines, @selection)}
           >
             <%= for {col, col_index} <- Enum.with_index(@col) do %>
               <div

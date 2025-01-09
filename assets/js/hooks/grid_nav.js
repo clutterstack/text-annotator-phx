@@ -291,6 +291,7 @@ export const GridNav = {
 
   handleMouseDown(e) {
     const lineNumberEl = e.target.closest('.line-number');
+    const targetCell = e.target.closest('.grid-cell');
     const activeEl = document.activeElement;
     console.log("handleMouseDown")
     // this.logActiveEl();
@@ -304,7 +305,7 @@ export const GridNav = {
         this.selectionStart(lineNumber);
         this.el.addEventListener('mouseover', this.handleMouseOver);
       }
-      else if (activeEl.classList.contains("editable")) {
+      else if (activeEl.classList.contains("editable") && targetCell == activeEl) {
         this.startEdit(activeEl.dataset);
       } 
       else if (this.state.isLineSelecting && lineNumberEl == null) {
@@ -349,7 +350,6 @@ export const GridNav = {
       }
       this.el.removeEventListener('mouseover', this.handleMouseOver);
       this.submitChunk();
-
     }
   },
 
