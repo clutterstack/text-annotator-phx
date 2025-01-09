@@ -12,6 +12,8 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :chunk_groups, :list, required: true
   attr :lang, :string, default: ""
   attr :latestline, :string, default: nil
+  attr :lang_form, :any
+  attr :collection_id, :string, required: true
 
   slot :col, required: true do
     attr :label, :string
@@ -24,12 +26,18 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     # Logger.info("lines assign: #{inspect assigns.lines}")
     Logger.info("anno_grid log: lang assign? #{inspect assigns.lang}")
     ~H"""
-    <div><%= "Mode: #{@mode}" %></div>
+    <div class="flex justify-between">
+        <div class="self-center flex">Mode: <pre><%= " #{@mode}" %></pre></div>
+        <.horiz_form for={@lang_form} phx-submit="set_collection_lang">
+          <.horiz_input field={@lang_form[:lang]} />
+          <.button aria-label="Set language" class="text-sm font-light ml-2" phx-disable-with="Setting language">Set language</.button>
+        </.horiz_form>
+      </div>
     <div
-      class="w-full grid grid-cols-[min-content_min-content_1fr_1fr] items-start rounded-lg border"
+      class="w-full grid grid-cols-[min-content_min-content_4fr_3fr] items-start rounded-lg border"
       role="grid"
       tabindex="0"
-      id="annotated-content"
+      id={"annotated-content-#{@collection_id}"}
       phx-hook="GridNav"
       data-latestline={@latestline != nil && @latestline}
       data-mode={@mode}
@@ -306,17 +314,13 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   end
 
   @doc """
-  A copy of the core simple_form but with the styles I want instead
+  Simplification of the core simple_form
 
   ## Examples
-
-      <.name_form for={@form} phx-change="validate" phx-submit="save">
-        <.input field={@form[:email]} label="Email"/>
-        <.input field={@form[:username]} label="Username" />
-        <:actions>
-          <.button>Save</.button>
-        </:actions>
-      </.name_form>
+        <.name_form for={@name_form} phx-submit="rename_collection">
+          <.name_input field={@name_form[:name]} />
+          <.button aria-label="Rename collection" class="text-sm bg-zinc-400 font-light" phx-disable-with="Renaming...">Rename</.button>
+        </.name_form>
   """
   attr :for, :any, required: true, doc: "the data structure for the form"
   attr :as, :any, default: nil, doc: "the server side parameter to collect all input under"
@@ -326,18 +330,161 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     doc: "the arbitrary HTML attributes to apply to the form tag"
 
   slot :inner_block, required: true
-  slot :actions, doc: "the slot for form actions, such as a submit button"
 
   def name_form(assigns) do
     ~H"""
     <.form :let={f} for={@for} as={@as} {@rest}>
-      <div class="mt-6 space-y-8 bg-white flex justify-stretch">
+      <div class="mt-6 bg-white flex">
         <%= render_slot(@inner_block, f) %>
-        <div :for={action <- @actions} class="mt-2 flex items-center justify-between gap-6">
-          <%= render_slot(action, f) %>
-        </div>
       </div>
     </.form>
+    """
+  end
+
+
+  @doc """
+  Simplification of the core simple_form for highlighting language selection
+
+  ## Examples
+        <.horiz_form for={@name_form} phx-submit="rename_collection">
+          <.horiz_input field={@name_form[:name]} />
+          <.button aria-label="Rename collection" class="text-sm bg-zinc-400 font-light" phx-disable-with="Renaming...">Rename</.button>
+        </.horiz_form>
+  """
+  attr :for, :any, required: true, doc: "the data structure for the form"
+  attr :as, :any, default: nil, doc: "the server side parameter to collect all input under"
+
+  attr :rest, :global,
+    include: ~w(autocomplete name rel action enctype method novalidate target multipart),
+    doc: "the arbitrary HTML attributes to apply to the form tag"
+
+  slot :inner_block, required: true
+
+  def horiz_form(assigns) do
+    ~H"""
+    <.form :let={f} for={@for} as={@as} {@rest}>
+      <div class="flex">
+        <%= render_slot(@inner_block, f) %>
+      </div>
+    </.form>
+    """
+  end
+
+  @doc """
+    A text input for collection name. A copy of the
+    core input component just to change styles.
+  """
+
+  attr :id, :any, default: nil
+  attr :name, :any
+  attr :label, :string, default: nil
+  attr :value, :any
+
+  attr :type, :string,
+    default: "text",
+    values: ~w(checkbox color date datetime-local email file month number password
+              range search select tel text textarea time url week)
+
+  attr :field, Phoenix.HTML.FormField,
+    doc: "a form field struct retrieved from the form, for example: @form[:email]"
+
+  attr :errors, :list, default: []
+  attr :checked, :boolean, doc: "the checked flag for checkbox inputs"
+  attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
+  attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
+  attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
+
+  attr :rest, :global,
+    include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
+                multiple pattern placeholder readonly required rows size step)
+
+  def name_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
+
+    assigns
+    |> assign(field: nil, id: assigns.id || field.id)
+    |> assign(:errors, Enum.map(errors, &translate_error(&1)))
+    |> assign_new(:name, fn -> if assigns.multiple, do: field.name <> "[]", else: field.name end)
+    |> assign_new(:value, fn -> field.value end)
+    |> name_input()
+  end
+  def name_input(assigns) do
+    ~H"""
+    <div class="flex w-72">
+      <label :if={@label} for={@id} ><%= @label %></label>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={[
+          "mt-2 block rounded-lg text-2xl text-zinc-900 focus:ring-0 py-0 pl-0 pr-5 w-full",
+          @errors == [] && "border-transparent hover:border-zinc-400 focus:border-zinc-400",
+          @errors != [] && "border-rose-400 focus:border-rose-400"
+        ]}
+        {@rest}
+      />
+      <.error :for={msg <- @errors}><%= msg %></.error>
+    </div>
+    """
+  end
+
+  @doc """
+    A text input for collection name. A copy of the
+    core input component just to change styles.
+  """
+
+  attr :id, :any, default: nil
+  attr :name, :any
+  attr :label, :string, default: nil
+  attr :value, :any
+
+  attr :type, :string,
+    default: "text",
+    values: ~w(checkbox color date datetime-local email file month number password
+              range search select tel text textarea time url week)
+
+  attr :field, Phoenix.HTML.FormField,
+    doc: "a form field struct retrieved from the form, for example: @form[:email]"
+
+  attr :errors, :list, default: []
+  attr :checked, :boolean, doc: "the checked flag for checkbox inputs"
+  attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
+  attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
+  attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
+
+  attr :rest, :global,
+    include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
+                multiple pattern placeholder readonly required rows size step)
+
+  def horiz_input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
+
+    assigns
+    |> assign(field: nil, id: assigns.id || field.id)
+    |> assign(:errors, Enum.map(errors, &translate_error(&1)))
+    |> assign_new(:name, fn -> if assigns.multiple, do: field.name <> "[]", else: field.name end)
+    |> assign_new(:value, fn -> field.value end)
+    |> horiz_input()
+  end
+  def horiz_input(assigns) do
+    ~H"""
+    <div class="flex">
+      <label :if={@label} for={@id} ><%= @label %></label>
+      <input
+        type={@type}
+        name={@name}
+        id={@id}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={[
+          "mt-2 py-0 block rounded-lg text-sm text-zinc-900 focus:ring-0",
+          @errors == [] && "border-zinc-300 focus:border-zinc-400",
+          @errors != [] && "border-rose-400 focus:border-rose-400"
+        ]}
+        {@rest}
+      />
+      <.error :for={msg <- @errors}><%= msg %></.error>
+    </div>
     """
   end
 

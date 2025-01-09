@@ -28,7 +28,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
            editing: nil,
            lang: collection.lang,
            name_form: to_form(%{"name" => collection.name}),
-           lang_form: to_form(%{"lang" => collection.lang}),
+          #  lang_form: to_form(%{"lang" => collection.lang}),
            latestline: nil
          )}
     end
@@ -39,33 +39,26 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      assign(socket,
        collection: nil,
        editing: [0, 1],
-       name_form: to_form(%{"name" => ""}),
-       lang_form: to_form(%{"lang" => ""})
+       name_form: to_form(%{"name" => ""})
      )}
   end
 
   def render(assigns) do
     # Logger.info("running render fn of textAnnotatorLive; lang assign is #{assigns.lang}. collection.lang is #{assigns.collection.lang}.")
     ~H"""
-    <div id="collection-container" class="w-full space-y-8">
+    <div id="collection-container" class="w-full space-y-2">
       <.name_form for={@name_form} phx-submit="rename_collection">
-        <.input class="grow" field={@name_form[:name]} label="Collection Name" required />
-        <:actions>
-          <.button phx-disable-with="Renaming...">Rename collection</.button>
-        </:actions>
-      </.name_form>
-      <.name_form for={@lang_form} phx-submit="set_collection_lang">
-        <.input class="grow" field={@lang_form[:lang]} label="Lang" />
-        <:actions>
-          <.button phx-disable-with="Setting language">Set lang</.button>
-        </:actions>
+        <.name_input field={@name_form[:name]}/>
+        <.button class="self-center" aria-label="Rename collection" phx-disable-with="Renaming...">Rename</.button>
       </.name_form>
       <.anno_grid
         mode="author"
         chunk_groups={@chunk_groups}
         editing={@editing}
         lang={@lang}
+        lang_form={to_form(%{"lang" => @lang})}
         latestline={@latestline}
+        collection_id={@collection.id}
       >
         <:col name="line-span" label="Chunk lines" editable={false} deletable={false}></:col>
         <:col name="line-num" label="Line" editable={false} deletable={false}></:col>

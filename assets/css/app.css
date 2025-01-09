@@ -11,6 +11,14 @@ body {
   @apply leading-snug;
 }
 
+input, button {
+  @apply mt-2;
+}
+
+button {
+  @apply py-2;
+}
+
 .highlighted-text {
     background-color: #fff3cd;
     border-bottom: 2px solid #ffc107;
