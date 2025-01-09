@@ -79,7 +79,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
 
       </div>
       <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML table</.link>
-        <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>]
+        <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
       <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
       <p><strong>Keyboard interaction</strong></p>
       <p>To navigate between grid cells, use arrow keys.</p>
