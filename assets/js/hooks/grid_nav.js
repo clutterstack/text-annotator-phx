@@ -74,7 +74,10 @@ export const GridNav = {
       maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
       maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
     }
-    
+    if (this.state.currentLine) {
+      this.focusLine(this.state.currentLine);
+      this.focusLineParent();
+      }
     this.selectionClear();
     // if (this.state.currentLine != null) {
     //   this.focusLineParent(this.state.currentLine);
