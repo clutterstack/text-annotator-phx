@@ -306,6 +306,7 @@ defmodule Annotator.Lines do
     joined_notes =
       Enum.map([working_chunk | other_chunks], & &1.note)
       |> Enum.join("\n\n")
+      |> String.trim_trailing("\n")
 
     {:ok, working_chunk} = update_chunk_note(working_chunk, joined_notes)
 
