@@ -49,11 +49,21 @@ button {
   @apply bg-[#f7f7ee];
 }
 
+.add-number {
+  padding-left: 40px;
+  /* margin-left: 3.6rem; */
+}
+
 .add-number::before {
   content: attr(data-number) " ";
   @apply text-zinc-400 font-mono;
+  margin-left: -2rem;
+  padding-right: -1rem;
+  width: 1.6rem;
+  display: inline-block;
+  text-align: left;
 }
-/*  */
+/* End of styles for ro mode */
 
 .highlighted-text {
     background-color: #fff3cd;
@@ -97,7 +107,7 @@ h4 {
 }
 
 p {
-    @apply text-slate-900 mb-2;
+    @apply text-slate-900 mt-2;
 }
 
 blockquote {

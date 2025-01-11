@@ -27,7 +27,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
           collection: collection,
           chunk_groups: get_chunk_groups(collection.lines),
           editing: nil,
-          mode: "read-only",
+          mode: "author",
           lang: collection.lang,
           name_form: to_form(%{"name" => collection.name}),
           lang_form: to_form(%{"lang" => collection.lang}),
@@ -65,7 +65,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         </.horiz_form>
       </div>
 
-      <div class="grid grid-cols-[min-content_4fr_3fr]">
+      <div class={["grid", @mode !== "read-only" && "grid-cols-[min-content_4fr_3fr]" || "grid-cols-[4fr_3fr]"]}>
         <.anno_grid :if={@mode !== "read-only"}
           mode={@mode}
           chunk_groups={@chunk_groups}
@@ -93,7 +93,8 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
         <.link navigate={~p"/collections/#{@collection.id}/export/html_table"}>Export HTML table</.link>
         <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
       </div>
-      <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
+
+      <div :if={@mode !== "read-only"} class="mt-4 text-sm text-gray-600 space-y-0" role="complementary" aria-label="Keyboard interaction">
       <p><strong>Keyboard interaction</strong></p>
       <p>To navigate between grid cells, use arrow keys.</p>
       <p>To edit a focused content or note grid cell, press <kbd>Enter</kbd>.</p>
@@ -107,7 +108,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
     </div>
 
 
-    <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Mouse interactions">
+    <div :if={@mode !== "read-only"} class="mt-4 text-sm text-gray-600 space-y-0" role="complementary" aria-label="Mouse interactions">
       <p><strong>Mouse interaction</strong></p>
       <p>To focus a content or note grid cell, click it.</p>
       <p>To edit a focused content or note grid cell, click it.</p>
@@ -155,8 +156,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
      )}
   end
 
-  def handle_event(
-        "update_cell",
+  def handle_event("update_cell",
         %{"chunk_id" => chunk_id, "col_name" => "content", "value" => content},
         socket
       ) do
@@ -174,7 +174,8 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
          assign(socket,
            collection: collection,
            chunk_groups: get_chunk_groups(collection.lines),
-           editing: nil
+           editing: nil,
+           latestline: nil
          )}
 
       {:error, changeset} ->
@@ -182,8 +183,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
     end
   end
 
-  def handle_event(
-        "update_cell",
+  def handle_event("update_cell",
         %{"chunk_id" => chunk_id, "col_name" => "note", "value" => note},
         socket
       ) do
@@ -202,7 +202,8 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
          assign(socket,
            collection: collection,
            chunk_groups: get_chunk_groups(collection.lines),
-           editing: nil
+           editing: nil,
+           latestline: nil
          )}
 
       {:error, changeset} ->

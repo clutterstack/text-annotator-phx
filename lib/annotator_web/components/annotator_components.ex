@@ -145,7 +145,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           case length(lines) do
             1 ->
               List.first(lines).line_number
-
             _ ->
               "#{List.first(lines).line_number}-#{List.last(lines).line_number}"
           end

@@ -109,7 +109,7 @@ defmodule AnnotatorWeb.AnnotatorComponents.HtmlGrid do
             phx-value-col={@col_index}
           >
           <%= for line <- @row_lines do %>
-              <pre class="whitespace-pre-wrap add-number" data-number={line.line_number}><code class={"language-#{@lang}"} ><%= raw line.content %></code></pre>
+              <div class="content-line"><pre class="whitespace-pre-wrap add-number" data-number={line.line_number}><code class={"language-#{@lang}"} ><%= raw line.content %></code></pre></div>
           <% end %>
         </div>
       <% "note" -> %>

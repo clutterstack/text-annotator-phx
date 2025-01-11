@@ -19,7 +19,55 @@ export const GridNav = {
     // console.log("maxRow: "+ this.config.maxRow + "; maxCol: " + this.config.maxCol);
     console.log("In mounted function (after resetConfig)")
     // this.logActiveEl();
+    this.initialise_listeners();
+  },
 
+  updated() {
+    console.log("DOM refreshed by LiveView");
+
+    this.resetConfig();
+    this.initialise_listeners();
+
+    if (this.config.mode == "author") {
+      // this.state.currentLine = this.el.dataset.latestline; // Not sure I need to do this on updated...maybe
+      console.log("in updated fn: currentLine is " + this.state.currentLine);
+      if (this.state.currentLine) {
+        this.focusLine(this.state.currentLine)
+        this.focusLineParent();
+        }
+    }
+    // this.logActiveEl();
+    this.config.maxRow = this.el.querySelectorAll('[role="row"]').length - 2;
+    window.highlightAll(this.el);
+
+    if (typeof this.state.firstSelectedLine === 'number') { 
+      console.log("in updated: firstSelectedLine = " + this.state.firstSelectedLine)
+      this.styleSelected("#ddffdd", this.state.firstSelectedLine, this.state.currentLine);
+    }
+  },
+
+  resetConfig() {
+    // console.log("before resetConfig(). this.config.maxLine = " + this.config.maxLine)
+    // console.log("before resetConfig(). this.state.firstSelectedLine = " + this.state.firstSelectedLine)
+    // console.log("before resetConfig(). this.state.currentLine = " + this.state.currentLine)
+
+    this.config = {
+      mode: this.el.dataset.mode,
+      maxLine: this.el.querySelectorAll('[data-line-number]').length - 1,
+      maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
+      maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
+    }
+  },
+
+  clear_sel_and_focus() {
+    if (this.state.currentLine) {
+      this.focusLine(this.state.currentLine);
+      this.focusLineParent();
+      }
+    this.selectionClear();
+  },
+
+  initialise_listeners() {
     if (this.config.mode == "author") {
       if (this.el.dataset.latestline) {
       this.focusLine(this.el.dataset.latestline)
@@ -38,58 +86,6 @@ export const GridNav = {
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.el.addEventListener('keydown', this.handleKeyDown);
-  },
-
-  updated() {
-    console.log("DOM refreshed by LiveView");
-
-    this.resetConfig();
-
-    if (this.config.mode == "author") {
-      this.config.lineCount = this.el.querySelectorAll('[data-line-number]').length;
-      // this.state.currentLine = this.el.dataset.latestline; // Not sure I need to do this on updated...maybe
-      console.log("in updated fn: currentLine is " + this.state.currentLine);
-      if (this.state.currentLine) {
-        this.focusLine(this.state.currentLine)
-        this.focusLineParent();
-        }
-    }
-    // this.logActiveEl();
-    this.config.maxRow = this.el.querySelectorAll('[role="row"]').length - 2;
-    window.highlightAll(this.el);
-
-    
-    
-    if (typeof this.state.firstSelectedLine === 'number') { 
-      console.log("in updated: firstSelectedLine = " + this.state.firstSelectedLine)
-      this.styleSelected("#ddffdd", this.state.firstSelectedLine, this.state.currentLine);
-    }
-  },
-
-  resetConfig() {
-    // console.log("before resetConfig(). this.config.lineCount = " + this.config.lineCount)
-    // console.log("before resetConfig(). this.state.firstSelectedLine = " + this.state.firstSelectedLine)
-    // console.log("before resetConfig(). this.state.currentLine = " + this.state.currentLine)
-
-    this.config = {
-      mode: this.el.dataset.mode,
-      lineCount: this.el.querySelectorAll('[data-line-number]').length,
-      maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
-      maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
-    }
-    
-  },
-
-  clear_sel_and_focus() {
-    if (this.state.currentLine) {
-      this.focusLine(this.state.currentLine);
-      this.focusLineParent();
-      }
-    this.selectionClear();
-    // if (this.state.currentLine != null) {
-    //   this.focusLineParent(this.state.currentLine);
-    //   }
-    // console.log("end of resetConfig: currentLine is " + this.state.currentLine);
   },
   
   logActiveEl() {
@@ -137,17 +133,17 @@ export const GridNav = {
 
   focusLine(line_num) {
     const line_class = '.line-' + line_num;
-    console.log("focusLine: line_class is " + line_class);
+    // console.log("focusLine: line_class is " + line_class);
     const line_el = this.el.querySelector('.line-' + line_num);
     const targetCell = line_el.closest(line_class);
-    console.log("targetCell classlist: " + targetCell.classList)
+    // console.log("targetCell classlist: " + targetCell.classList)
     if (targetCell) targetCell.focus();
     // this.logActiveEl();
   },
 
   focusLineParent() {
     if (document.activeElement.classList.contains("line-number")) {
-      console.log("focusLineParent: active element is a line number; focus the parent cell");
+      // console.log("focusLineParent: active element is a line number; focus the parent cell");
       document.activeElement.parentElement.focus();
     }
     // this.logActiveEl();
@@ -176,8 +172,8 @@ export const GridNav = {
   selectionStart(lineNumber) {
     this.state.firstSelectedLine = lineNumber;
     this.state.currentLine = lineNumber;
-    console.log("selectionStart changed this.state.firstSelectedLine to " + this.state.firstSelectedLine + " with type " + typeof(this.state.firstSelectedLine));
-    console.log("selectionStart changed this.state.currentLine to " + this.state.currentLine + " with type " + typeof(this.state.currentLine));
+    // console.log("selectionStart changed this.state.firstSelectedLine to " + this.state.firstSelectedLine + " with type " + typeof(this.state.firstSelectedLine));
+    // console.log("selectionStart changed this.state.currentLine to " + this.state.currentLine + " with type " + typeof(this.state.currentLine));
   },
 
   selectionClear() {
@@ -185,12 +181,11 @@ export const GridNav = {
     this.unstyleSelected();
     this.state.isLineSelecting = false;
     this.state.firstSelectedLine = null;
-    // console.log("in selectionClear: this.state.currentLine is " + this.state.currentLine);
+    console.log("in selectionClear: this.state.currentLine is " + this.state.currentLine);
     },
 
   submitChunk() {
     console.log("submitChunk: pushing rechunk event")
-    
     this.pushEvent('rechunk', {start: this.state.firstSelectedLine, end: this.state.currentLine});
     this.resetConfig();
     this.clear_sel_and_focus();
@@ -221,7 +216,7 @@ export const GridNav = {
     // If selection is started, don't need arrow keys to move without selecting
     console.log("*** Arrow keys in chunk selection mode ***");
     // console.log("this.state.firstSelectedLine is " + this.state.firstSelectedLine);
-    const nextLine = key === 'ArrowUp' ? Math.max(lineNum - 1, this.state.firstSelectedLine) : Math.min(lineNum + 1, this.config.lineCount - 1);
+    const nextLine = key === 'ArrowUp' ? Math.max(lineNum - 1, this.state.firstSelectedLine) : Math.min(lineNum + 1, this.config.maxLine);
     console.log("nextLine is " + nextLine)
     const nextEl = document.querySelector(`[data-line-number="${nextLine}"]`);
 
@@ -255,7 +250,10 @@ export const GridNav = {
           el.style.backgroundColor = color;
           // console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
         });
-        document.querySelector(`.line-${num2 + 1}`).removeAttribute("style");
+        if (Number(num2) + 1 < Number(this.config.maxLine)) {
+          console.log("num2 +1 is " + (Number(num2)+1) + ". maxLine is " + this.config.maxLine);
+          document.querySelector(`.line-${num2 + 1}`).removeAttribute("style");
+        }
       }
     }
   },
