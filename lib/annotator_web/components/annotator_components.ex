@@ -8,7 +8,6 @@ defmodule AnnotatorWeb.AnnotatorComponents do
   attr :mode, :string, default: "read-only"
   attr :editing, :any, default: nil
   attr :selection, :any, default: nil
-  # attr :lines, :list, required: true
   attr :chunk_groups, :list, required: true
   attr :lang, :string, default: ""
   attr :latestline, :string, default: nil
@@ -126,11 +125,11 @@ defmodule AnnotatorWeb.AnnotatorComponents do
 
   # We may have a few hundred lines in a chunk, so Tailwind's row-span-*
   # shortcuts that seem to go up to 12 aren't cutting it.
-  defp rowspanstyle(lines) do
+  def rowspanstyle(lines) do
     "grid-row-end: span #{Enum.count(lines)};"
   end
 
-  defp get_aria_label(col, lines, chunk) do
+  def get_aria_label(col, lines, chunk) do
     case col[:name] do
       "line-num" ->
         if length(lines) == 1 do
@@ -236,7 +235,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
-  defp highlight_elixir(content) do
+  def highlight_elixir(content) do
     if is_binary(content) do
       content |> Makeup.highlight_inner_html()
     else
@@ -466,6 +465,33 @@ defmodule AnnotatorWeb.AnnotatorComponents do
         </:actions>
       </.simple_form>
     </.modal>
+    """
+  end
+
+  attr :ro_mode, :string, default: "author"
+  def mode_switcher(assigns) do
+    mode = assigns.ro_mode
+    Logger.info("switcher log: ro_mode is " <> to_string(mode))
+    ~H"""
+    <div>
+        <input
+          id="read-only"
+          type="checkbox"
+          name="mode"
+          checked={@ro_mode}
+          phx-click={"toggle_mode"}
+          class="hidden"
+        />
+          <label
+            for="read-only"
+            class="flex items-center text-center bg-zinc-200 text-sm flex rounded-lg cursor-pointer">
+            <div class={[@ro_mode === true && "bg-sky-700 text-white rounded-lg", "p-1"]}>
+            Read-Only
+            </div><div class={[@ro_mode !== true && "bg-sky-700 text-white rounded-lg", "p-1"]}>
+            Author
+            </div>
+          </label>
+    </div>
     """
   end
 

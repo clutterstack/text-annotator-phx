@@ -19,6 +19,42 @@ button {
   @apply py-2;
 }
 
+/* CAN custom classes for annotator exports */
+
+.annotated-content-container {
+  @apply grid grid-cols-[4fr_3fr]
+}
+
+.subgrid-holder {
+  @apply grid grid-cols-subgrid col-span-full;
+}
+
+.row-container {
+  @apply border-b bg-zinc-50;
+}
+
+.annotated-content {
+  @apply w-full items-start rounded-lg border;
+}
+
+.columnheader {
+  @apply p-1 text-sm font-medium text-zinc-500;
+}
+
+.grid-cell {
+  @apply z-30 focus:bg-fuchsia-400;
+}
+
+.code-cell {
+  @apply bg-[#f7f7ee];
+}
+
+.add-number::before {
+  content: attr(data-number) " ";
+  @apply text-zinc-400 font-mono;
+}
+/*  */
+
 .highlighted-text {
     background-color: #fff3cd;
     border-bottom: 2px solid #ffc107;
@@ -61,7 +97,7 @@ h4 {
 }
 
 p {
-    @apply text-slate-900 mb-6;
+    @apply text-slate-900 mb-2;
 }
 
 blockquote {

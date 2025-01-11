@@ -1,6 +1,27 @@
 defmodule AnnotatorWeb.ExportComponents do
   use Phoenix.Component
   use AnnotatorWeb, :html
+  import AnnotatorWeb.AnnotatorComponents
+
+  attr :chunk_groups, :list, required: true
+  attr :lang, :string, default: ""
+  attr :id, :string
+
+  def html_divs(assigns) do
+    ~H"""
+    <div class="grid grid-cols-[4fr_3fr]">
+      <.anno_grid
+        mode="read-only"
+        chunk_groups={@chunk_groups}
+        lang={@lang}
+        collection_id={@id}
+      >
+        <:col name="content" label="Content"></:col>
+        <:col name="note" label="Note"></:col>
+      </.anno_grid>
+    </div>
+    """
+  end
 
   attr :chunk_groups, :list, required: true
 

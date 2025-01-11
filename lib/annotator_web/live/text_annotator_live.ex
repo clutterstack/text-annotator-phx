@@ -2,6 +2,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
   use AnnotatorWeb, :live_view
   import Annotator.SharedHelpers
   import AnnotatorWeb.AnnotatorComponents
+  alias AnnotatorWeb.AnnotatorComponents.HtmlGrid
   alias Annotator.Lines
   require Logger
 
@@ -26,7 +27,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
           collection: collection,
           chunk_groups: get_chunk_groups(collection.lines),
           editing: nil,
-          mode: "author",
+          mode: "read-only",
           lang: collection.lang,
           name_form: to_form(%{"name" => collection.name}),
           lang_form: to_form(%{"lang" => collection.lang}),
@@ -48,15 +49,16 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
 
   def render(assigns) do
     # Logger.info("running render fn of textAnnotatorLive; lang assign is #{assigns.lang}. collection.lang is #{assigns.collection.lang}.")
+
     ~H"""
     <div id="collection-container" class="w-full space-y-2">
-      <.name_form for={@name_form} phx-submit="rename_collection">
-        <.name_input field={@name_form[:name]}/>
-        <.button class="self-center" aria-label="Rename collection" phx-disable-with="Renaming...">Rename</.button>
-      </.name_form>
+          <a class="inline-block" href="/" class="font-lg font-bold hover:text-zinc-700">&laquo; Collections</a>
+        <.name_form for={@name_form} phx-submit="rename_collection">
+          <.name_input field={@name_form[:name]}/>
+          <.button class="self-center" aria-label="Rename collection" phx-disable-with="Renaming...">Rename</.button>
+        </.name_form>
       <div class="flex justify-between">
-        <div class="self-center flex">Mode: <pre><%= " #{@mode}" %></pre>
-        </div>
+        <.mode_switcher ro_mode={@mode === "read-only"} />
         <.horiz_form for={@lang_form} phx-submit="set_collection_lang">
           <.horiz_input field={@lang_form[:lang]} />
           <.button aria-label="Set language" class="text-sm font-light ml-2" phx-disable-with="Setting language">Set language</.button>
@@ -64,7 +66,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
       </div>
 
       <div class="grid grid-cols-[min-content_4fr_3fr]">
-        <.anno_grid
+        <.anno_grid :if={@mode !== "read-only"}
           mode={@mode}
           chunk_groups={@chunk_groups}
           editing={@editing}
@@ -76,10 +78,21 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
           <:col name="content" label="Content" editable={true} deletable={true}></:col>
           <:col name="note" label="Note" editable={true} deletable={false}></:col>
         </.anno_grid>
-
+        <HtmlGrid.ro_grid :if={@mode === "read-only"}
+          chunk_groups={@chunk_groups}
+          lang={@lang}
+          collection_id={@collection.id}
+          >
+          <:col name="content" label="Content"></:col>
+          <:col name="note" label="Note"></:col>
+        </HtmlGrid.ro_grid>
       </div>
-      <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML table</.link>
+      <div class="flex justify-between">
+        <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML divs</.link>
+        <.link navigate={~p"/collections/#{@collection.id}/export/html_grid"}>Export HTML grid</.link>
+        <.link navigate={~p"/collections/#{@collection.id}/export/html_table"}>Export HTML table</.link>
         <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
+      </div>
       <div class="mt-4 text-sm text-gray-600" role="complementary" aria-label="Keyboard interaction">
       <p><strong>Keyboard interaction</strong></p>
       <p>To navigate between grid cells, use arrow keys.</p>
@@ -270,6 +283,14 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
          |> put_flash(:error, error_to_string(changeset))
          |> assign(form: to_form(Map.put(socket.assigns.form.data, "lang", lang)))}
     end
+  end
+
+  def handle_event("toggle_mode", _params, socket) do
+    mode = case socket.assigns.mode do
+      "read-only" -> "author"
+      "author" -> "read-only"
+    end
+    {:noreply, assign(socket, mode: mode)}
   end
 
   # # TODO: change the schema to store a language for highlighting

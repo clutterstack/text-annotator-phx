@@ -20,7 +20,9 @@ defmodule AnnotatorWeb.Router do
     live "/collections", CollectionLive.Index
     live "/collections/new", NewCollectionLive
     live "/collections/:id", TextAnnotatorLive
-    get "/collections/:id/export/html", ExportController, :html_table
+    get "/collections/:id/export/html_grid", ExportController, :html_grid
+    get "/collections/:id/export/html_table", ExportController, :html_table
+    get "/collections/:id/export/html", ExportController, :html_divs
     get "/collections/:id/export/md", ExportController, :markdown_table
   end
 

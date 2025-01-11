@@ -10,6 +10,7 @@ export const GridNav = {
     // this.state.currentLine = this.el.dataset.latestline;
 
     this.resetConfig();
+    this.clear_sel_and_focus();
     if (typeof window.highlightAll === 'function') {
       console.log("highlighting on mount");
       window.highlightAll(this.el);
@@ -41,6 +42,8 @@ export const GridNav = {
 
   updated() {
     console.log("DOM refreshed by LiveView");
+
+    this.resetConfig();
 
     if (this.config.mode == "author") {
       this.config.lineCount = this.el.querySelectorAll('[data-line-number]').length;
@@ -74,6 +77,10 @@ export const GridNav = {
       maxRow: this.el.querySelectorAll('[role="row"]').length - 2, // minus one because header row doesn't count, minus another because zero-indexed (TODO: make rows start at 1)
       maxCol: this.el.querySelectorAll('[role="columnheader"]').length - 1
     }
+    
+  },
+
+  clear_sel_and_focus() {
     if (this.state.currentLine) {
       this.focusLine(this.state.currentLine);
       this.focusLineParent();
@@ -186,6 +193,7 @@ export const GridNav = {
     
     this.pushEvent('rechunk', {start: this.state.firstSelectedLine, end: this.state.currentLine});
     this.resetConfig();
+    this.clear_sel_and_focus();
   },
 
   handleChunkSelection(key) {
