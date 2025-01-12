@@ -24,7 +24,7 @@ export const GridNav = {
 
   updated() {
     console.log("DOM refreshed by LiveView");
-
+    this.remove_listeners();
     this.resetConfig();
     this.initialise_listeners();
 
@@ -86,6 +86,13 @@ export const GridNav = {
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.el.addEventListener('keydown', this.handleKeyDown);
+  },
+
+  remove_listeners() {
+    this.el.removeEventListener('keydown', this.handleKeyDown);
+    this.el.removeEventListener('mousedown', this.handleMouseDown);
+    this.el.removeEventListener('mouseup', this.handleMouseUp);
+    this.el.removeEventListener('mouseover', this.handleMouseOver);
   },
   
   logActiveEl() {
@@ -406,10 +413,6 @@ export const GridNav = {
   },
 
   destroyed() {
-    this.el.removeEventListener('keydown', this.handleKeyDown);
-    this.el.removeEventListener('mousedown', this.handleMouseDown);
-    this.el.removeEventListener('mouseup', this.handleMouseUp);
-    this.el.removeEventListener('mouseover', this.handleMouseOver);
-
+    this.remove_listeners();
   }
 };
