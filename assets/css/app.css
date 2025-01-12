@@ -3,6 +3,7 @@
 @import "tailwindcss/utilities";
 @import "../vendor/highlight.js/styles/a11y-light.css";
 @import "../../priv/static/assets/makeup_friendly.css";
+@import "./annotated.css";
 
 
 /* This file is for your main application CSS */
@@ -19,50 +20,20 @@ button {
   @apply py-2;
 }
 
-/* CAN custom classes for annotator exports */
-
-.annotated-content-container {
-  @apply grid grid-cols-[4fr_3fr]
-}
-
-.subgrid-holder {
-  @apply grid grid-cols-subgrid col-span-full;
-}
+/* Additional styles for read-only grid -- most are in annotated.css */
 
 .row-container {
-  @apply border-b bg-zinc-50;
-}
-
-.annotated-content {
-  @apply w-full items-start rounded-lg border;
+  @apply bg-zinc-100/75;
 }
 
 .columnheader {
   @apply p-1 text-sm font-medium text-zinc-500;
 }
 
-.grid-cell {
-  @apply z-30 focus:bg-fuchsia-400;
+.annotated-content .note {
+  @apply border-t;
 }
 
-.code-cell {
-  @apply bg-[#f7f7ee];
-}
-
-.add-number {
-  padding-left: 40px;
-  /* margin-left: 3.6rem; */
-}
-
-.add-number::before {
-  content: attr(data-number) " ";
-  @apply text-zinc-400 font-mono;
-  margin-left: -2rem;
-  padding-right: -1rem;
-  width: 1.6rem;
-  display: inline-block;
-  text-align: left;
-}
 /* End of styles for ro mode */
 
 .highlighted-text {
@@ -138,46 +109,15 @@ a {
     @apply mb-2;
 }
 
-  /* For annotator grid component */
+#annotated-content .note p {
+  @apply mt-2;
+}
 
-  .data-grid {
-    @apply w-full max-w-6xl mx-auto grid grid-cols-[min-content_1fr_1fr] gap-4;
-  }
-  
-  .data-grid .grid-row, .data-grid .header {
-    /* display: contents; */
-    @apply grid grid-cols-subgrid col-span-3 border border-solid;
-  }
 
-  .data-grid .header {
-    @apply font-bold;
-  }
-  
-  .data-grid .line-num {
-    @apply px-2 text-zinc-400 font-mono border-r;
-  }
-  
-  .data-grid .content {
-    @apply px-2 border-r;
-  }
-  
-  .data-grid .content pre {
-    @apply mb-2;
-  }
+.line-number.selectedline {
+  @apply bg-fuchsia-200 hover:bg-fuchsia-400;
+}
 
-  .data-grid .content textarea {
-    @apply font-mono p-1 border rounded;
-  }
-
-  #annotated-content .note p {
-    @apply mt-2;
-  }
-
-  
-  .line-number.selectedline {
-    @apply bg-fuchsia-200 hover:bg-fuchsia-400;
-  }
-
-  .text-sm p {
-    @apply mb-2;
-  }
+.text-sm p {
+  @apply mb-2;
+}

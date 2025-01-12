@@ -1,0 +1,93 @@
+/* CAN custom classes for annotator exports */
+
+.annotated-content-container {
+  @apply grid grid-cols-[4fr_3fr] col-span-full rounded-lg mb-6;
+  background: linear-gradient(to right, rgb(240 249 255) 57%, rgb(240 240 240) 43%);
+  /* rgb(240 249 255) is bg-sky-50 to rgb(255 247 237) is bg-orange-50  */
+}
+
+.annotated-content {
+  @apply w-full items-start rounded-lg border border-slate-500 py-4;
+}
+
+.subgrid-holder {
+  @apply grid grid-cols-subgrid col-span-full;
+}
+
+.row-container {
+  @apply hover:bg-amber-500/0 rounded-lg;
+  @apply bg-zinc-100/75;
+
+  /* z-index: 200; */
+}
+
+.grid-cell {
+  @apply z-30 ;
+  /* focus:bg-fuchsia-400 */
+}
+
+.code-cell {
+  @apply bg-[#f7f7ee];
+}
+
+.annotated-content .column-labels, .annotated-content .column-labels * {
+  @apply hidden h-0;
+}
+
+.columnheader {
+  @apply p-1 text-sm font-medium text-zinc-500;
+}
+
+.annotated-content .line-numbers, 
+.annotated-content .content {
+  @apply flex flex-col;
+}
+
+.annotated-content .content {
+  /* @apply bg-sky-600/50; */
+}
+
+.annotated-content .note {
+  /*@apply relative pl-2; So I can make a partial border using absolute positioning */
+  @apply border-t;
+
+}
+
+/* Uncomment below to get a horizontal line above the note cell */
+/* .annotated-content .note::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10%; 
+    width: 80%; 
+    height: 1px; 
+    background-color: black;
+    @apply bg-amber-500/50 rounded-full;
+} */
+
+.annotated-content pre {
+  @apply py-0 pr-2 mb-0 border-0 rounded-none bg-transparent whitespace-pre-wrap;
+}
+
+.annotated-content p {
+  /* @apply mb-1; */
+}
+
+.add-number {
+  padding-left: 3.5rem;
+  /* margin-left: 3.6rem; */
+
+}
+
+.add-number::before {
+  content: attr(data-number) " ";
+  @apply text-zinc-400 font-mono;
+  margin-left: -3rem;
+  width: 3rem;
+  display: inline-block;
+  text-align: left;
+}
+
+
+
+/*  */
