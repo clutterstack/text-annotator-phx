@@ -20,22 +20,6 @@ button {
   @apply py-2;
 }
 
-/* Additional styles for read-only grid -- most are in annotated.css */
-
-.row-container {
-  @apply bg-zinc-100/75;
-}
-
-.columnheader {
-  @apply p-1 text-sm font-medium text-zinc-500;
-}
-
-.annotated-content .note {
-  @apply border-t;
-}
-
-/* End of styles for ro mode */
-
 .highlighted-text {
     background-color: #fff3cd;
     border-bottom: 2px solid #ffc107;

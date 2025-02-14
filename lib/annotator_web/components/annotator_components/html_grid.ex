@@ -95,10 +95,12 @@ defmodule AnnotatorWeb.AnnotatorComponents.HtmlGrid do
   attr :col_index, :string
   attr :lang, :string, default: ""
 
+  # The combo of highlight.js and Makeup in my site's highlighting depends
+  # (at the moment) on the bare language being the only class on the `<code>` element
   def static_cell_content(%{col_name: "content"} = assigns) do
     ~H"""
               <%= for line <- @row_lines do %>
-                <div class="content-line"><pre class="whitespace-pre-wrap add-number" data-number={line.line_number}><code class={"language-#{@lang}"} ><%= raw line.content %></code></pre></div><% end %>
+                <div class="content-line"><pre class="whitespace-pre-wrap add-number" data-number={line.line_number}><code class={"#{@lang}"} ><%= raw line.content %></code></pre></div><% end %>
     """
   end
 

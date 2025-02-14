@@ -24,6 +24,7 @@ defmodule AnnotatorWeb.Router do
     get "/collections/:id/export/html_table", ExportController, :html_table
     get "/collections/:id/export/html", ExportController, :html_divs
     get "/collections/:id/export/md", ExportController, :markdown_table
+    get "/collections/:id/export/md_dl", ExportController, :markdown_dl
   end
 
   # Other scopes may use custom stacks.

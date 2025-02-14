@@ -33,6 +33,37 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('diff', diff);
 hljs.registerLanguage('html', xml);
 
+
+// Version that can use multiple classes on the `<code>` element
+// Not currently compatible with my site's Nimble Publisher Markdown 
+// processing
+
+// window.highlightAll = function(where = document) {
+//   // Custom function using hljs.highlight() because
+//   // hljs.highlightElement() and hljs.highlightAll()
+//   // do stuff to the background and spacing.
+
+//   // highlightjs does have elixir but doesn't have heex
+//   // I'll use makeup for elixir and heex, so don't highlight
+//   // anything that has makeup in the class name
+//   where.querySelectorAll('pre code').forEach((el) => {
+//     // where.querySelectorAll('pre code').forEach((el) => {
+//       if (!el.classList.contains('makeup')) {
+//       // console.log("Got a class: " + el.classList)
+//       const languageClass = Array.from(el.classList).find(className => 
+//         className.startsWith('language-')
+//       );
+//       const lang = languageClass?.replace('language-', '');
+//       if (lang != null && hljs.getLanguage(lang) != null) {
+//         // console.log("Lang supported by hljs! " + lang)
+//         const { value: value } = hljs.highlight(el.innerText, {language: lang, ignoreIllegals: true});
+//         el.innerHTML = value;
+//       }
+//     }
+//   });
+// }
+
+// Version where the lang is the only class on the `<code>` element
 window.highlightAll = function(where = document) {
   // Custom function using hljs.highlight() because
   // hljs.highlightElement() and hljs.highlightAll()
@@ -42,16 +73,11 @@ window.highlightAll = function(where = document) {
   // I'll use makeup for elixir and heex, so don't highlight
   // anything that has makeup in the class name
   where.querySelectorAll('pre code').forEach((el) => {
-    // where.querySelectorAll('pre code').forEach((el) => {
-      if (!el.classList.contains('makeup')) {
-      // console.log("Got a class: " + el.classList)
-      const languageClass = Array.from(el.classList).find(className => 
-        className.startsWith('language-')
-      );
-      const lang = languageClass?.replace('language-', '');
-      if (lang != null && hljs.getLanguage(lang) != null) {
-        // console.log("Lang supported by hljs! " + lang)
-        const { value: value } = hljs.highlight(el.innerText, {language: lang, ignoreIllegals: true});
+    if (!el.classList.contains('makeup')) {
+      const lang = el.getAttribute("class")
+      console.log("Got a lang: " + lang)
+      if (lang != null) {
+        const { value: value } = hljs.default.highlight(el.innerText, {language: lang, ignoreIllegals: true});
         el.innerHTML = value;
       }
     }

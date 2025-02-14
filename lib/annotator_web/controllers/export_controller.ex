@@ -91,4 +91,25 @@ defmodule AnnotatorWeb.ExportController do
         text(conn, string_to_render)
     end
   end
+
+  def markdown_dl(conn, %{"id" => id}) do
+    case Lines.get_collection_with_assocs(id) do
+      nil ->
+        conn
+        |> put_flash(:error, "Collection not found")
+        |> redirect(to: ~p"/collections")
+
+      collection ->
+        chunk_groups = get_chunk_groups(collection.lines)
+
+        string_to_render =
+          ExportComponents.markdown_dl(%{chunk_groups: chunk_groups})
+          |> Phoenix.HTML.html_escape()
+          |> Phoenix.HTML.safe_to_string()
+          |> String.trim()
+
+        # |> IO.inspect()
+        text(conn, string_to_render)
+    end
+  end
 end

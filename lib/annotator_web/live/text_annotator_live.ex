@@ -89,6 +89,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
       </div>
       <div class="flex justify-between">
         <.link navigate={~p"/collections/#{@collection.id}/export/html"}>Export HTML divs</.link>
+        <.link navigate={~p"/collections/#{@collection.id}/export/md_dl"}>Export Markdown definition list</.link>
         <.link navigate={~p"/collections/#{@collection.id}/export/html_grid"}>Export HTML grid</.link>
         <.link navigate={~p"/collections/#{@collection.id}/export/html_table"}>Export HTML table</.link>
         <.link navigate={~p"/collections/#{@collection.id}/export/md"}>Export Markdown table</.link>
@@ -103,7 +104,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
       <p>    Use up and down arrow keys to move between line numbers.</p>
       <p>    To begin a selection at a focused line number, press <kbd>V</kbd> (that's <kbd>Shift</kbd>-<kbd>v</kbd>).</p>
       <p>    To expand or contract the selection, use the up and down arrow keys.</p>
-      <p>    To submit the selection, press <kbd>Enter</kbd>.</p>
+      <p>    To submit the selection, press <kbd>Ctrl</kbd>-<kbd>Enter</kbd> or <kbd>Cmd~</kbd>-<kbd>Enter</kbd>.</p>
       <p>    To clear and cancel the selection, press <kbd>Esc</kbd>.</p>
     </div>
 
@@ -276,6 +277,7 @@ defmodule AnnotatorWeb.TextAnnotatorLive do
   def handle_event("set_collection_lang", %{"lang" => lang}, socket) do
     # {:noreply, socket |> assign(lang: lang)}
     ## TODO: make sure this makes sense and activate it once schema can support it
+    Logger.info("set_collection_lang triggered")
     case set_lang(socket.assigns.collection.id, lang) do
       {:ok, _collection} -> {:noreply, assign(socket, lang: lang)}
       {:error, changeset} ->

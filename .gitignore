@@ -1,6 +1,12 @@
 # The directory Mix will write compiled artifacts to.
 /_build/
 
+# asdf config
+.tool-versions
+
+# .DS_Store
+**/.DS_Store
+
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 

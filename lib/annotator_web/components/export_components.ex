@@ -126,6 +126,17 @@ defmodule AnnotatorWeb.ExportComponents do
     """
   end
 
+  def markdown_dl(assigns) do
+    ~H"""
+    <%= for {chunk, lines} <- @chunk_groups do %><%= chunk_content(%{lines: lines, format: "md"}) %>
+    <%= for para <- paras(chunk.note) do%><%= if para != "" do %>: <%= raw para %>
+    <% end %><% end %>
+    <% end %>
+    """
+  end
+
+  # : <%= chunk_note(%{paras: paras(chunk.note)}) %>
+
   defp line_nums(assigns) do
     ~H"""
       <%= for line <- Enum.drop(@lines, -1) do %><%= line.line_number %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= line.line_number %><% end %>
@@ -135,7 +146,8 @@ defmodule AnnotatorWeb.ExportComponents do
   end
   defp chunk_content(assigns) do
     ~H"""
-      <%= for line <- Enum.drop(@lines, -1) do %><%= escape_if_md(line.content, @format) %><br><% end %><%= for line <- Enum.take(@lines, -1) do %><%= escape_if_md(line.content, @format) %><% end %>
+      <%= for line <- Enum.drop(@lines, -1) do %><%= escape_if_md(line.content, @format) %>
+      <% end %><%= for line <- Enum.take(@lines, -1) do %><%= escape_if_md(line.content, @format) %><% end %>
     """
   end
 

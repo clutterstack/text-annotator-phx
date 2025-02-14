@@ -217,7 +217,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code class={"language-#{@lang}"}><%= raw highlight_elixir(line.content) %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class={"#{@lang}"}><%= raw highlight_elixir(line.content) %></code></pre>
           </div>
         <% end %>
       <% "note" -> %>
@@ -309,7 +309,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
 
 
   @doc """
-  Simplification of the core simple_form for highlighting language selection
+  Simplification of the core simple_form for, e.g., setting highlighting language or renaming a collection
 
   ## Examples
         <.horiz_form for={@name_form} phx-submit="rename_collection">
