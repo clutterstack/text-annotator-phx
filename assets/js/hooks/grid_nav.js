@@ -223,8 +223,10 @@ export const GridNav = {
     // If selection is started, don't need arrow keys to move without selecting
     console.log("*** Arrow keys in chunk selection mode ***");
     // console.log("this.state.firstSelectedLine is " + this.state.firstSelectedLine);
-    const nextLine = key === 'ArrowUp' ? Math.max(lineNum - 1, this.state.firstSelectedLine) : Math.min(lineNum + 1, this.config.maxLine);
-    console.log("nextLine is " + nextLine)
+    const nextLine = key === 'ArrowUp' 
+    ? Math.max(lineNum - 1, 0) // Allow selection up to the first line
+    : Math.min(lineNum + 1, this.config.maxLine); // Allow selection down to the last line
+    //     console.log("nextLine is " + nextLine)
     const nextEl = document.querySelector(`[data-line-number="${nextLine}"]`);
 
     if (nextEl) {
@@ -247,37 +249,54 @@ export const GridNav = {
     }
   },
 
+  // This function re-styles line-number elements every time the selection changes.
+  // Could keep track of old vs. new boundaries and only change the style on the changed element each time.
+  // But line selection is so little of the job I'm not bothering to change it.
   styleSelected(color = "#dddddd", num1 = this.state.firstSelectedLine, num2 = this.state.currentLine) {
     // console.log("In styleSelected, num1 = " + num1 + " and num2 = " + num2)
-    if (typeof num1 === 'number' && num1 >= 0) {
-      for (let i = num1; i <= num2; i++) {
+    // Ensure we have valid number values
+    if (typeof num1 === 'number' && num1 >= 0 && typeof num2 === 'number' && num2 >= 0) {
+      // Get the actual start and end of selection range, regardless of direction
+      const start = Math.min(num1, num2);
+      const end = Math.max(num1, num2);
+      for (let i = start; i <= end; i++) {
         const elements = document.querySelectorAll(`.line-${i}`);
         elements.forEach(el => {
           // console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
           el.style.backgroundColor = color;
           // console.log("In styleSelected. At line" + i + ", element style: " + el.style.backgroundColor);
         });
-        if (Number(num2) + 1 < Number(this.config.maxLine)) {
-          console.log("num2 +1 is " + (Number(num2)+1) + ". maxLine is " + this.config.maxLine);
-          document.querySelector(`.line-${num2 + 1}`).removeAttribute("style");
-        }
+        // Unstyle line numbers outside our current selection when we make the selection smaller
+        // Always clear the line immediately before and after current selection
+        const beforeEl = document.querySelector(`.line-${start - 1}`);
+        if (beforeEl) beforeEl.removeAttribute("style");
+        
+        const afterEl = document.querySelector(`.line-${end + 1}`);
+        if (afterEl) afterEl.removeAttribute("style");
+
+        // if (end + 1 < Number(this.config.maxLine)) {
+        //   console.log("end + 1 is " + (end+1) + ". maxLine is " + this.config.maxLine);
+        //   document.querySelector(`.line-${end + 1}`).removeAttribute("style");
+        // }
       }
     }
   },
 
   unstyleSelected(num1 = this.state.firstSelectedLine, num2 = this.state.currentLine) {
     // console.log("in unstyleSelected. num1 is " + num1 + " and num2 is " + num2)
-    // if (num1 >= 0) {
-      for (let i = num1; i <= num2; i++) {
+    if (typeof num1 === 'number' && num1 >= 0 && typeof num2 === 'number' && num2 >= 0) {
+      const start = Math.min(num1, num2);
+      const end = Math.max(num1, num2);
+
+      for (let i = start; i <= end; i++) {
         const elements = document.querySelectorAll(`.line-${i}`);
         elements.forEach(el => {
           // console.log("element style: " + el.style.backgroundColor);
-          // el.style.backgroundColor = color;
           el.removeAttribute("style");
           // console.log("element style: " + el.style.backgroundColor);
         });
       }
-    // }
+    }
   },
 
   // Event handlers

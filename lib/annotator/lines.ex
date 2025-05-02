@@ -233,9 +233,14 @@ defmodule Annotator.Lines do
          true <- is_number(end_line),
          true <- is_number(chunk.start_line),
          true <- is_number(chunk.end_line) do
+
+      # Get the actual start and end of selection range, regardless of direction
+      sel_start = min(start_line, end_line)
+      sel_end = max(start_line, end_line)
+
       (chunk.start_line >= start_line and chunk.start_line <= end_line) or
-        (chunk.end_line >= start_line and chunk.end_line <= end_line) or
-        (chunk.start_line <= start_line and chunk.end_line >= end_line)
+      (chunk.end_line >= start_line and chunk.end_line <= end_line) or
+      (chunk.start_line <= start_line and chunk.end_line >= end_line)
     else
       _ -> false
     end
@@ -244,13 +249,15 @@ defmodule Annotator.Lines do
   defp reorganize_multiple_chunks(first_chunk, other_chunks, new_start, new_end) do
     # First split off a new chunk for any lines before the new chunk starts
     # Move any note from the first selected chunk here, too.
+    actual_start = min(new_start, new_end)
+    actual_end = max(new_start, new_end)
     {:ok, working_chunk} =
-      if first_chunk.start_line < new_start do
+      if first_chunk.start_line < actual_start do
         {:ok, before_chunk} =
           create_chunk(
             first_chunk.collection_id,
             first_chunk.start_line,
-            new_start - 1,
+            actual_start - 1,
             first_chunk.note
           )
 
@@ -259,7 +266,7 @@ defmodule Annotator.Lines do
             where:
               l.chunk_id == ^first_chunk.id and
                 l.line_number >= ^first_chunk.start_line and
-                l.line_number < ^new_start
+                l.line_number < ^actual_start
           )
           |> Repo.update_all(set: [chunk_id: before_chunk.id])
 
@@ -276,20 +283,20 @@ defmodule Annotator.Lines do
 
     # {last_chunk, _} = List.pop_at(other_chunks, -1) # centre is the affected chunks minus the first and last
     Logger.info(
-      "last line of last selected chunk: #{last_chunk.end_line}; last line of selection: #{new_end}"
+      "last line of last selected chunk: #{last_chunk.end_line}; last line of selection: #{actual_end}"
     )
 
-    if last_chunk.end_line > new_end do
-      Logger.info("create after chunk for lines in last selected chunk after new_end")
+    if last_chunk.end_line > actual_end do
+      Logger.info("create after chunk for lines in last selected chunk after actual_end")
       # No note on new last chunk
       {:ok, after_chunk} =
-        create_chunk(last_chunk.collection_id, new_end + 1, last_chunk.end_line, "")
+        create_chunk(last_chunk.collection_id, actual_end + 1, last_chunk.end_line, "")
 
       {count, _} =
         from(l in Line,
           where:
             l.chunk_id == ^last_chunk.id and
-              l.line_number > ^new_end and
+              l.line_number > ^actual_end and
               l.line_number <= ^last_chunk.end_line
         )
         |> Repo.update_all(set: [chunk_id: after_chunk.id])
@@ -320,8 +327,8 @@ defmodule Annotator.Lines do
         from(l in Line,
           where:
             l.chunk_id == ^chunk.id and
-              l.line_number >= ^new_start and
-              l.line_number <= ^new_end
+              l.line_number >= ^actual_start and
+              l.line_number <= ^actual_end
         )
         |> Repo.update_all(set: [chunk_id: working_chunk.id])
 
@@ -335,7 +342,7 @@ defmodule Annotator.Lines do
     # Finally update working chunk boundaries
     {:ok, updated_chunk} =
       working_chunk
-      |> Chunk.changeset(%{"start_line" => new_start, "end_line" => new_end})
+      |> Chunk.changeset(%{"start_line" => actual_start, "end_line" => actual_end})
       |> Repo.update()
 
     # Verify no lines were orphaned
@@ -345,8 +352,8 @@ defmodule Annotator.Lines do
           where:
             is_nil(l.chunk_id) and
               l.collection_id == ^working_chunk.collection_id and
-              l.line_number >= ^new_start and
-              l.line_number <= ^new_end,
+              l.line_number >= ^actual_start and
+              l.line_number <= ^actual_end,
           select: count()
       )
 
