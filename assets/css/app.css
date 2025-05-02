@@ -2,7 +2,7 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 @import "../vendor/highlight.js/styles/a11y-light.css";
-@import "../../priv/static/assets/makeup_friendly.css";
+@import "./makeup_friendly.css";
 @import "./annotated.css";
 
 
