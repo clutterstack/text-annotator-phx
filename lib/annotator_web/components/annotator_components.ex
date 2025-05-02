@@ -217,7 +217,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code class={"#{@lang}"}><%= raw highlight_elixir(line.content) %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class={"#{@lang}"}><%= raw highlight_elixir(@lang, line.content) %></code></pre>
           </div>
         <% end %>
       <% "note" -> %>
@@ -234,13 +234,19 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
-  def highlight_elixir(content) do
-    if is_binary(content) do
-      content |> Makeup.highlight_inner_html()
+  def highlight_elixir(lang, content) when is_binary(lang) and is_binary(content) do
+    if String.downcase(lang) == "elixir" do
+      Logger.info("lang is #{lang}; Makeup should highlight")
+      Logger.info("checking something: highlighted:#{Makeup.highlight_inner_html(content)}")
+      Logger.info("content: #{content}")
+      Makeup.highlight_inner_html(content)
     else
-      ""
+      Logger.info("lang is #{lang}; passing along to JS highlighting logic")
+      content
     end
   end
+
+  def highlight_elixir(_lang, content), do: content
 
   defp is_line_selected?(line, selection) when not is_nil(selection) do
     line.line_number >= min(selection.start_line, selection.end_line) &&

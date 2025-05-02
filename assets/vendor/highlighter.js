@@ -5,7 +5,7 @@ https://bernheisel.com/blog/moving-blog
 import hljs from './highlight.js/lib/core';
 
 // Import the languages you want
-import elixir from './highlight.js/lib/languages/elixir';
+// import elixir from './highlight.js/lib/languages/elixir';
 import javascript from './highlight.js/lib/languages/javascript';
 import shell from './highlight.js/lib/languages/shell';
 import bash from './highlight.js/lib/languages/bash';
@@ -24,7 +24,7 @@ hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('shell', shell);
 hljs.registerLanguage('bash', bash);
 hljs.registerLanguage('dockerfile', dockerfile);
-hljs.registerLanguage('elixir', elixir);
+// hljs.registerLanguage('elixir', elixir);
 hljs.registerLanguage('eex', erb);
 hljs.registerLanguage('go', go);
 hljs.registerLanguage('ruby', ruby);
@@ -73,13 +73,17 @@ window.highlightAll = function(where = document) {
   // I'll use makeup for elixir and heex, so don't highlight
   // anything that has makeup in the class name
   where.querySelectorAll('pre code').forEach((el) => {
-    if (!el.classList.contains('makeup')) {
-      const lang = el.getAttribute("class")
-      console.log("Got a lang: " + lang)
-      if (lang != null) {
+    // if (!el.classList.contains('makeup')) {
+    const lang = el.getAttribute("class")
+    // console.log("Got a lang: " + lang + ". Checking if it's enabled in hljs.")
+    if (lang != "elixir") {
+    // if (lang != null) {
+      const lang_avail = !!hljs.getLanguage(lang) // Boolean
+      if (lang_avail) {
         const { value: value } = hljs.default.highlight(el.innerText, {language: lang, ignoreIllegals: true});
         el.innerHTML = value;
       }
+    // }
     }
   });
 }
