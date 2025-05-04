@@ -17,7 +17,8 @@ defmodule AnnotatorWeb.CoreComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  import AnnotatorWeb.Gettext
+  # import AnnotatorWeb.Gettext
+  use Gettext, backend: Annotator.Gettext
 
   @doc """
   Renders a modal.

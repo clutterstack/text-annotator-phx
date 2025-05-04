@@ -108,16 +108,16 @@ defmodule AnnotatorWeb.AnnotatorComponents do
     """
   end
 
-  defp is_selected?(lines, selection) when not is_nil(selection) do
-    first_line = List.first(lines)
-    last_line = List.last(lines)
+  # defp is_selected?(lines, selection) when not is_nil(selection) do
+  #   first_line = List.first(lines)
+  #   last_line = List.last(lines)
 
-    first_line && last_line &&
-      first_line.line_number >= min(selection.start_line, selection.end_line) &&
-      last_line.line_number <= max(selection.start_line, selection.end_line)
-  end
+  #   first_line && last_line &&
+  #     first_line.line_number >= min(selection.start_line, selection.end_line) &&
+  #     last_line.line_number <= max(selection.start_line, selection.end_line)
+  # end
 
-  defp is_selected?(_, _), do: false
+  # defp is_selected?(_, _), do: false
 
   # defp rowspanclass(lines) do
   #   "row-span-#{Enum.count(lines)}"

@@ -235,8 +235,8 @@ defmodule Annotator.Lines do
          true <- is_number(chunk.end_line) do
 
       # Get the actual start and end of selection range, regardless of direction
-      sel_start = min(start_line, end_line)
-      sel_end = max(start_line, end_line)
+      # sel_start = min(start_line, end_line)
+      # sel_end = max(start_line, end_line)
 
       (chunk.start_line >= start_line and chunk.start_line <= end_line) or
       (chunk.end_line >= start_line and chunk.end_line <= end_line) or
