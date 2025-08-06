@@ -118,6 +118,19 @@ export const GridNav = {
     return this.el.querySelector('textarea') !== null;
   },
 
+  // Check if there's an active editor with unsaved changes
+  hasUnsavedChanges() {
+    return window.currentEditKeysHook && window.currentEditKeysHook.isDirty();
+  },
+
+  // Confirm navigation away from dirty editor
+  confirmNavigationFromEditor() {
+    if (!this.hasUnsavedChanges()) {
+      return true; // No changes, safe to proceed
+    }
+    return window.confirm("You have unsaved changes. Are you sure you want to leave this editor?");
+  },
+
   startEdit(elData) {
     console.log("startEdit triggered");
     console.log("elData.rowIndex: " + elData.rowIndex);
@@ -342,6 +355,23 @@ export const GridNav = {
       }
       else if (activeEl.classList.contains("editable") && targetCell == activeEl) {
         this.startEdit(activeEl.dataset);
+      } 
+      else if (targetCell && targetCell.classList.contains("grid-cell") && this.isEditing()) {
+        // Check if click is within the current editor
+        const currentEditor = this.el.querySelector('[phx-hook="EditKeys"]');
+        const isClickWithinEditor = currentEditor && (currentEditor === e.target || currentEditor.contains(e.target));
+        
+        if (!isClickWithinEditor) {
+          // User clicked on a different cell while editing
+          if (this.confirmNavigationFromEditor()) {
+            // Cancel current edit and allow navigation
+            window.currentEditKeysHook && window.currentEditKeysHook.pushEvent("cancel_edit");
+          } else {
+            e.preventDefault();
+            return; // Stay in current editor
+          }
+        }
+        // If click is within current editor, allow default behavior (cursor placement)
       } 
       else if (this.state.isLineSelecting && lineNumberEl == null) {
         // console.log("got a mousedown outside of a line-number element");
