@@ -43,7 +43,7 @@ defmodule AnnotatorWeb do
         layouts: [html: AnnotatorWeb.Layouts]
 
       import Plug.Conn
-      import AnnotatorWeb.Gettext
+      use Gettext, backend: AnnotatorWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -85,7 +85,7 @@ defmodule AnnotatorWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import AnnotatorWeb.CoreComponents
-      import AnnotatorWeb.Gettext
+      use Gettext, backend: AnnotatorWeb.Gettext
 
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

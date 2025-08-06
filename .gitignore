@@ -1,6 +1,12 @@
 # The directory Mix will write compiled artifacts to.
 /_build/
 
+# Agents
+CLAUDE.md
+CLAUDE*.md
+AGENTS.md
+
+
 # asdf config
 .tool-versions
 

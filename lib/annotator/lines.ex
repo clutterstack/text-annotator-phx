@@ -140,7 +140,7 @@ defmodule Annotator.Lines do
       )
       |> Repo.update_all(inc: [start_line: offset, end_line: offset])
     end)
-
+    # TODO: either handle errors or return a raw value to downstream functions can match on the result.
     # end of the transaction fn
     {:ok, get_collection_with_assocs(collection_id)}
   end

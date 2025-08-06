@@ -71,7 +71,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
                 data-deletable={col[:deletable]}
                 aria-label={get_aria_label(col, lines, chunk)}
                 class={[
-                  "grid-cell z-30 focus:bg-fuchsia-400",
+                  "grid-cell z-30 focus:bg-fuchsia-100",
                   col[:name],
                   col_index != length(@col) - 1 && "border-r",
                   col[:editable] && @mode === "author" &&
@@ -197,7 +197,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
           <div
             class={[
               "line-#{line.line_number}",
-              "line-number hover:bg-zinc-200/100 focus:bg-fuchsia-400 rounded cursor-pointer z-40 min-h-4"
+              "line-number hover:bg-zinc-200/100 focus:bg-fuchsia-100 rounded cursor-pointer z-40 min-h-4"
             ]}
             role="button"
             tabindex="-1"
@@ -217,7 +217,7 @@ defmodule AnnotatorWeb.AnnotatorComponents do
             phx-value-row={@row_index}
             phx-value-col={@col_index}
           >
-            <pre class="whitespace-pre-wrap"><code class={[String.downcase(@lang) == "elixir" && "makeup","#{@lang}"]}><%= raw highlight_elixir(@lang, line.content) %></code></pre>
+            <pre class="whitespace-pre-wrap"><code class={[is_binary(@lang) && String.downcase(@lang) == "elixir" && "makeup","#{@lang}"]}><%= raw highlight_elixir(@lang, line.content) %></code></pre>
           </div>
         <% end %>
       <% "note" -> %>
